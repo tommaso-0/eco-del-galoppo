@@ -3,9 +3,11 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 import time
 import re
 import random
+import os
 from datetime import datetime
 
 print("📰 Accensione rotative de 'L'Eco del Galoppo'...")
@@ -13,19 +15,32 @@ print("📰 Accensione rotative de 'L'Eco del Galoppo'...")
 DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
-# --- IL CAVALLO DEL GIORNO (Ripristinato il tuo archivio interno) ---
-campioni = [
-    {"nome": "TAP DANCE CITY", "storia": "Indimenticabile dominatore della Japan Cup del 2003. Sotto una pioggia battente, ha imposto un ritmo infernale fin dalla partenza, trionfando in solitaria con un distacco abissale di 9 lunghezze."},
-    {"nome": "RIBOT", "storia": "Il 'Cavallo del Secolo'. Imbattuto in 16 corse, leggenda assoluta che ha calcato anche l'erba di San Rossore a Pisa prima di conquistare l'Arc de Triomphe per due volte di fila."}
-]
-campione_oggi = random.choice(campioni)
+# ==========================================
+# 1. IL CAVALLO DEL GIORNO (Dal tuo file TXT privato)
+# ==========================================
+campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Impossibile caricare il memoir."}
+
+try:
+    # Cerca il file ignorando le maiuscole per evitare errori su server Linux
+    file_trovato = next((f for f in os.listdir('.') if f.lower() == 'memoir.txt'), None)
+    
+    if file_trovato:
+        with open(file_trovato, "r", encoding="utf-8") as f:
+            linee = [line.strip() for line in f if "|" in line]
+        if linee:
+            scelta = random.choice(linee)
+            nome_c, storia_c = scelta.split("|", 1)
+            campione_oggi = {"nome": nome_c.strip(), "storia": storia_c.strip()}
+    else:
+        campione_oggi["storia"] = "File memoir.txt non trovato nella cartella."
+except Exception as e:
+    print(f"Errore caricamento memoir: {e}")
 
 # ==========================================
-# 🕵️ MODULO INFILTRAZIONE NOTIZIE UNIVERSALE (Ripristinata la tua logica H1/H2/H3)
+# 2. RECUPERO NOTIZIE (Filtro anti-spazzatura potenziato)
 # ==========================================
 def recupera_notizie(driver):
     html_news = ""
-    
     fonti = [
         {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it/"},
         {"nome": "EQUOS (GALOPPO)", "url": "https://equos.it/category/galoppo/"},
@@ -40,27 +55,25 @@ def recupera_notizie(driver):
         print(f"   [📻] Contatto redazione: {fonte['nome']}...")
         try:
             driver.get(fonte['url'])
-            time.sleep(3) 
+            time.sleep(4) 
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             
+            # Peschiamo solo i veri link (<a>) dentro i titoli per evitare il testo dei menu
             titoli = soup.find_all(['h1', 'h2', 'h3'])
             notizie_estratte = []
             
             for t in titoli:
+                link = t.find('a')
                 testo = t.get_text(strip=True)
-                if len(testo) > 25 and testo not in notizie_estratte and "Menu" not in testo and "Search" not in testo:
-                    notizie_estratte.append(testo)
-                if len(notizie_estratte) == 2: 
-                    break
-            
-            if not notizie_estratte:
-                link_testi = soup.find_all('a')
-                for a in link_testi:
-                    testo = a.get_text(strip=True)
-                    if len(testo) > 30 and testo not in notizie_estratte and "Cookie" not in testo:
+                
+                # FILTRO DURO: Più di 35 caratteri (elimina le voci brevi), scarta le parole chiave inutili
+                if len(testo) > 35 and testo not in notizie_estratte:
+                    if not any(fuffa in testo for fuffa in ["Menu", "Search", "Cookie", "Privacy", "Accedi", "Abbonati", "Redazione"]):
                         notizie_estratte.append(testo)
-                    if len(notizie_estratte) == 2:
-                        break
+                        
+                # Vogliamo almeno 3 notizie buone
+                if len(notizie_estratte) == 3: 
+                    break
 
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
             if notizie_estratte:
@@ -73,28 +86,28 @@ def recupera_notizie(driver):
             html_news += '</div>'
             
         except Exception as e:
-            print(f"        ❌ Errore di connessione: {e}")
+            print(f"        ❌ Errore di connessione.")
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Collegamento alla redazione fallito.</h4></div>'
 
     return html_news
 
 # ==========================================
-# AVVIO DEL MOTORE CHROME CLOUD E IMPAGINATORE HTML
+# 3. AVVIO DEL MOTORE CHROME E IMPAGINATORE HTML
 # ==========================================
 options = Options()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
+# Questa stringa fa credere ai siti di essere un PC vero per non farci bloccare le notizie
 options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 try:
-    print("\n📡 Avvio del sistema cloud multi-radar antiblocco...")
-    # L'unica modifica: usiamo webdriver_manager per gestire Chrome in cloud
+    print("\n📡 Avvio del sistema multi-radar antiblocco...")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     
     blocco_notizie_dinamico = recupera_notizie(driver)
 
-    # Ripristinato il tuo layout originale in scala di grigi
+    # IL TUO STILE ORIGINALE[span_6](start_span)[span_6](end_span)
     sito_html = f"""
     <!DOCTYPE html>
     <html lang="it">
@@ -166,10 +179,10 @@ try:
     
     link_validi = []
     
-    # Ripristinata fedelmente la tua logica originale di estrazione
+    # LA TUA LOGICA CORSE ESATTA[span_7](start_span)[span_7](end_span)
     for menu in menu_da_visitare:
         driver.get(menu['url'])
-        time.sleep(4) 
+        time.sleep(6) # Aumentato leggermente il tempo di attesa per sicurezza sui server GitHub
         soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
         
         for a_tag in soup_menu.find_all('a', href=True):
@@ -200,20 +213,14 @@ try:
     
     if not link_validi:
         sito_html += "<p><em>Nessuna corsa al galoppo in programma per oggi.</em></p>"
-        print("\n❌ NESSUNA CORSA TROVATA (O palinsesto vuoto).")
+        print("\n❌ NESSUNA CORSA TROVATA.")
     else:
         print(f"\n✅ TROVATE {len(link_validi)} RIUNIONI DI GALOPPO!\n")
-        print("="*50)
         
         for item in link_validi:
             nome_stampato = item['nome']
-            nome_terminale = nome_stampato.replace(" <span class='etichetta-estero'>INT</span>", " (ESTERO)")
-            
-            print(f"🏇 {nome_terminale}")
-            print("-" * 50)
-            
             driver.get(item['url'])
-            time.sleep(3) 
+            time.sleep(4) 
             
             sito_html += f"<details class='ippodromo'><summary class='main-tendina'>{nome_stampato}</summary>\n<div style='padding: 10px;'>\n"
             
@@ -255,7 +262,6 @@ try:
                         
                     last_num = num_int
                     numero_formattato = str(num_int).zfill(2)
-                    
                     cavallo = celle[2]
                     val4 = celle[4] if len(celle) > 4 else "?"
                     val5 = celle[5] if len(celle) > 5 else "?"
@@ -267,12 +273,7 @@ try:
                         peso = val4
                         fantino = val5
                         
-                    corsa_corrente["cavalli"].append({
-                        "num": numero_formattato,
-                        "nome": cavallo,
-                        "peso": peso,
-                        "fantino": fantino
-                    })
+                    corsa_corrente["cavalli"].append({"num": numero_formattato, "nome": cavallo, "peso": peso, "fantino": fantino})
                     
                 elif len(celle) == 1 and any(k in testo_riga for k in ["CORSA", "PREMIO", "PRIX", "ORE"]):
                     if len(corsa_corrente["cavalli"]) > 0:
@@ -280,7 +281,6 @@ try:
                         num_corsa += 1
                         corsa_corrente = {"titolo": celle[0], "orario": "", "distanza": "", "cavalli": []}
                         last_num = 999
-                        
                         m_ora = re.search(r'(?:ORE|ALLE)\s*(\d{1,2}[:\.]\d{2})', testo_riga)
                         if m_ora: corsa_corrente["orario"] = m_ora.group(1).replace(".", ":")
                         m_dist = re.search(r'(?:METRI|MT|\bM\b)\s*(\d{3,4})|(\d{3,4})\s*(?:METRI|MT|\bM\b)', testo_dist_pulito)
@@ -298,21 +298,17 @@ try:
                 titolo_pulito = titolo_pulito.strip(' -')
                 if not titolo_pulito: titolo_pulito = f"CORSA"
 
-                print(f"\n  > {titolo_pulito} | 🕒 {corsa['orario'] or 'N/D'} | 📏 {corsa['distanza'] or 'N/D'}m")
-                
                 badge_ora = f"<span class='badge-ora'>🕒 {corsa['orario']}</span>" if corsa['orario'] else ""
                 badge_dist = f"<span class='badge-distanza'>📏 {corsa['distanza']}m</span>" if corsa['distanza'] else ""
                 
                 sito_html += f"<details class='corsa'><summary class='sub-tendina'><span>{titolo_pulito}</span> {badge_ora} {badge_dist}</summary>\n<table>\n<tr><th>N°</th><th>Cavallo</th><th>Peso</th><th>Fantino</th></tr>\n"
                 
                 for cav in corsa['cavalli']:
-                    print(f"  [{cav['num']}] {cav['nome'].ljust(20)} | Peso: {cav['peso']} | Fantino: {cav['fantino']}")
                     sito_html += f"<tr><td class='num'>[{cav['num']}]</td><td><b>{cav['nome']}</b></td><td>{cav['peso']}</td><td>{cav['fantino']}</td></tr>\n"
                 
                 sito_html += "</table>\n</details>\n"
 
             sito_html += "</div>\n</details>\n"
-            print("="*50 + "\n")
 
 except Exception as e:
     print(f"\n❌ Errore critico catturato: {e}")
@@ -322,7 +318,7 @@ finally:
     sito_html += "</body></html>"
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(sito_html)
-    print(f"\n✅ STAMPA HTML COMPLETATA E SALVATA IN '{HTML_OUTPUT}'.")
+    print(f"\n✅ STAMPA HTML COMPLETATA.")
     try:
         driver.quit()
     except:
