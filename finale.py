@@ -9,6 +9,8 @@ from datetime import datetime
 DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
+sito_html = ""
+
 try:
     with open("memoir.txt", "r", encoding="utf-8") as f:
         linee = [line.strip() for line in f if "|" in line]
