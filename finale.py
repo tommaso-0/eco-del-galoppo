@@ -13,18 +13,26 @@ from datetime import datetime
 DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
-# --- 1. GESTIONE MEMOIR ANTICRASH ---
+# --- 1. GESTIONE MEMOIR ANTICRASH ED INTELLIGENTE ---
 campione_oggi = {"nome": "IL CAVALLO DEL GIORNO", "storia": "Nessuna storia disponibile nell'archivio per l'edizione odierna."}
-if os.path.exists("memoir.txt"):
+memoir_file = None
+
+# Cerca il file ignorando le maiuscole/minuscole (es. trova sia memoir.txt che Memoir.txt)
+for f in os.listdir('.'):
+    if f.lower() == 'memoir.txt':
+        memoir_file = f
+        break
+
+if memoir_file:
     try:
-        with open("memoir.txt", "r", encoding="utf-8") as f:
+        with open(memoir_file, "r", encoding="utf-8") as f:
             linee = [line.strip() for line in f if "|" in line]
         if linee:
             scelta = random.choice(linee)
             nome_campione, storia_campione = scelta.split("|", 1)
             campione_oggi = {"nome": nome_campione.strip(), "storia": storia_campione.strip()}
-    except Exception:
-        pass # Se c'è un errore di formattazione, tiene il testo standard e non crasha
+    except Exception as e:
+        print(f"Errore nella lettura del memoir: {e}")
 
 # --- 2. RECUPERO NOTIZIE ---
 def recupera_notizie(driver):
@@ -60,7 +68,6 @@ def recupera_notizie(driver):
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
             if notizie_estratte:
                 for news in notizie_estratte:
-                    # Div singola-notizia per staccarle bene l'una dall'altra
                     html_news += f'<div class="singola-notizia"><a href="{news["url"]}" target="_blank">{news["titolo"]}</a></div>'
             else:
                 html_news += '<div class="singola-notizia">Nessuna notizia rilevante.</div>'
@@ -69,12 +76,11 @@ def recupera_notizie(driver):
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><div class="singola-notizia">Collegamento alla redazione fallito.</div></div>'
     return html_news
 
-# --- 3. CONFIGURAZIONE DRIVER STABILE ---
+# --- 3. CONFIGURAZIONE DRIVER ---
 options = Options()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
-# Maschera per simulare un PC reale e aggirare i blocchi
 options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 sito_html = ""
@@ -86,7 +92,7 @@ try:
     print("Recupero notizie in corso...")
     blocco_notizie_dinamico = recupera_notizie(driver)
     
-    # HTML E CSS (Completamente rivisto per il design)
+    # HTML E CSS
     sito_html = f"""
     <!DOCTYPE html>
     <html lang="it">
@@ -97,39 +103,27 @@ try:
         <style>
             body {{ font-family: 'Georgia', serif; background-color: #f4f3ee; color: #2b2b2b; margin: 0; padding: 20px; line-height: 1.6; }}
             .container {{ max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border: 1px solid #d3d3d3; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }}
-            
             .header {{ text-align: center; border-bottom: 5px double #111; padding-bottom: 20px; margin-bottom: 30px; }}
             .header h1 {{ margin: 0; font-family: 'Georgia', serif; font-size: 38px; text-transform: uppercase; font-weight: bold; letter-spacing: 2px; }}
             .header p.sottotitolo {{ margin: 10px 0 0 0; font-style: italic; font-size: 16px; color: #555; }}
             .data-edizione {{ font-size: 13px; text-transform: uppercase; border-top: 1px solid #111; display: inline-block; padding-top: 5px; margin-top: 10px; font-weight: bold; }}
-            
             .box-storico {{ border: 2px solid #8b0000; padding: 20px; margin-bottom: 40px; background-color: #faf9f6; border-radius: 4px; }}
             .box-titolo {{ font-weight: bold; text-align: center; border-bottom: 1px solid #8b0000; padding-bottom: 10px; margin-bottom: 15px; text-transform: uppercase; color: #8b0000; font-size: 18px; }}
             .storico-testo {{ font-size: 15px; text-align: justify; }}
-            
             .titolo-sezione {{ font-weight: bold; font-size: 24px; text-transform: uppercase; border-bottom: 3px solid #111; padding-bottom: 5px; margin-bottom: 25px; margin-top: 40px; }}
-            
-            /* NUOVO LAYOUT NOTIZIE */
             .news-item {{ background: #fff; padding: 25px; margin-bottom: 25px; border: 1px solid #e0e0e0; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }}
             .news-item .fonte {{ font-family: 'Arial', sans-serif; font-size: 14px; font-weight: bold; color: #8b0000; text-transform: uppercase; border-bottom: 2px solid #8b0000; padding-bottom: 5px; margin-bottom: 15px; display: inline-block; letter-spacing: 1px; }}
-            
             .singola-notizia {{ margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #ddd; }}
             .singola-notizia:last-child {{ margin-bottom: 0; padding-bottom: 0; border-bottom: none; }}
-            
             .singola-notizia a {{ color: #1a1a1a; text-decoration: none; font-size: 17px; font-weight: bold; display: block; line-height: 1.4; transition: color 0.2s; }}
             .singola-notizia a:hover {{ color: #8b0000; text-decoration: underline; }}
-            
-            /* STILE TENDINE CORSE */
             details.ippodromo {{ background-color: #fff; border: 1px solid #111; margin-bottom: 20px; border-radius: 4px; overflow: hidden; }}
             summary.main-tendina {{ background-color: #2b2b2b; color: #fff; padding: 15px; font-weight: bold; font-size: 16px; cursor: pointer; list-style: none; text-transform: uppercase; }}
-            
             details.corsa {{ margin: 10px; border: 1px solid #ccc; background-color: #fafafa; }}
             summary.sub-tendina {{ background-color: #e9e9e9; color: #111; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer; list-style: none; border-bottom: 1px solid #bbb; text-transform: uppercase; }}
-            
             .badge-ora, .badge-distanza {{ padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #999; margin-left: 10px; font-family: 'Arial', sans-serif; }}
             .badge-ora {{ background: #fff; color: #111; }}
             .badge-distanza {{ background: #555; color: #fff; border-color: #222; }}
-            
             table {{ width: 100%; border-collapse: collapse; font-size: 14px; background-color: #fff; font-family: 'Arial', sans-serif; }}
             th, td {{ padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; }}
             th {{ background-color: #f5f5f5; text-transform: uppercase; color: #555; font-size: 12px; }}
@@ -158,11 +152,12 @@ try:
             <div class="titolo-sezione">Partenti di Oggi</div>
     """
 
-    print("Ricerca corse su ippica.biz...")
+    print("Ricerca corse su ippica.biz (metodo classico)...")
     menu_da_visitare = [
         {"nome": "Italia", "url": "https://www.ippica.biz/00_menu.asp", "base": "https://www.ippica.biz/0/14_tlx/"},
         {"nome": "Estero", "url": "https://www.ippica.biz/1/14_fnz/14_IB_progr_estere.asp?fnz=1&scroll=no&P01=2016&g=1", "base": "https://www.ippica.biz/1/14_tlx/"}
     ]
+    
     link_validi = []
     
     for menu in menu_da_visitare:
@@ -170,26 +165,35 @@ try:
         time.sleep(4) 
         soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
         
-        # LOGICA CORSE MIGLIORATA
+        # QUI HO REINSERITO LA TUA LOGICA ORIGINALE CHE FUNZIONAVA PERFETTAMENTE
         for a_tag in soup_menu.find_all('a', href=True):
             href = a_tag['href'].strip()
             testo = a_tag.get_text(strip=True).upper()
             
-            # Cerca qualsiasi link che contenga "IPPO=" (che identifica gli ippodromi)
-            if 'IPPO=' in href.upper() and 'TG=T' not in href.upper():
-                match_ippo = re.search(r'IPPO=([^&]+)', href.upper())
-                nome_tendina = match_ippo.group(1).replace("%20", " ").replace("+", " ").upper() if match_ippo else "GARA"
-                
-                if menu['nome'] == "Estero":
-                    nome_tendina += " <span class='etichetta-estero'>INT</span>"
-                
-                url_assoluto = urljoin(menu['base'], href)
-                
-                if not any(l['nome'] == nome_tendina for l in link_validi):
-                    link_validi.append({'url': url_assoluto, 'nome': nome_tendina})
+            if '.asp?' in href.lower() and 'TG=T' not in href.upper():
+                if 'CORSA=0' in href.upper() or testo == 'C' or 'IPPO=' in href.upper():
+                    
+                    match_ippo = re.search(r'IPPO=([^&]+)', href.upper())
+                    nome_tendina = match_ippo.group(1).replace("%20", " ").replace("+", " ").upper() if match_ippo else "GARA"
+                    if menu['nome'] == "Estero":
+                        nome_tendina += " <span class='etichetta-estero'>INT</span>"
+                    
+                    url_assoluto = None
+                    
+                    match_http = re.search(r'(http[s]?://[^\s\)\'"]+)', href)
+                    if match_http:
+                        url_assoluto = match_http.group(1).replace("%27", "")
+                    else:
+                        match_file = re.search(r'([a-zA-Z0-9_]+\.asp\?[^\s\)\'"]+)', href)
+                        if match_file:
+                            file_pulito = match_file.group(1).replace("%27", "").replace("&amp;", "&")
+                            url_assoluto = menu['base'] + file_pulito
+                    
+                    if url_assoluto and not any(l['nome'] == nome_tendina for l in link_validi):
+                        link_validi.append({'url': url_assoluto, 'nome': nome_tendina})
     
     if not link_validi:
-        sito_html += "<p><em>Nessuna corsa al galoppo in programma per oggi su ippica.biz.</em></p>"
+        sito_html += "<p><em>Nessuna corsa al galoppo in programma per oggi.</em></p>"
     else:
         for item in link_validi:
             driver.get(item['url'])
@@ -275,7 +279,7 @@ except Exception as e:
     sito_html += f"<br><div style='border:2px solid red; padding:20px; background:#ffe6e6;'><b>Errore generico di elaborazione:</b><br>{e}</div>"
 
 finally:
-    sito_html += "</div></body></html>" # Chiude il div container e il body
+    sito_html += "</div></body></html>" 
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(sito_html)
     try:
