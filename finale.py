@@ -78,9 +78,12 @@ options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 
 try:
-    # Rimosso il percorso locale, il cloud troverà da solo la sua versione di Chrome
-    # Rimuovi version_main=150 e prova con l'inizializzazione pulita
-    driver = uc.Chrome(options=options, use_subprocess=True)
+    # Usiamo il driver che il workflow ha scaricato in /usr/bin/chromedriver
+    driver = uc.Chrome(
+        options=options, 
+        driver_executable_path='/usr/bin/chromedriver', 
+        use_subprocess=True
+    )
     
     blocco_notizie_dinamico = recupera_notizie(driver)
     sito_html = f"""
