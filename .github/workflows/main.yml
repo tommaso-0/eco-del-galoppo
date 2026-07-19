@@ -24,17 +24,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install -U undetected-chromedriver selenium
-
-    - name: Installa Chrome e Driver fisso
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-        # Scarica il driver esatto per la versione 150
-        wget -N https://storage.googleapis.com/chrome-for-testing-public/150.0.7871.0/linux64/chromedriver-linux64.zip -P ~/
-        unzip ~/chromedriver-linux64.zip -d ~/
-        sudo mv ~/chromedriver-linux64/chromedriver /usr/bin/chromedriver
-        sudo chmod +x /usr/bin/chromedriver
 
     - name: Avvia le rotative
       run: python finale.py
