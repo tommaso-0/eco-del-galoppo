@@ -32,8 +32,12 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y google-chrome-stable
-        # Verifichiamo la versione installata
-        google-chrome --version
+        # Scarichiamo il driver specifico per la versione 150 (la stessa del browser)
+        wget -N https://storage.googleapis.com/chrome-for-testing-public/150.0.7871.0/linux64/chromedriver-linux64.zip -P ~/
+        unzip ~/chromedriver-linux64.zip -d ~/
+        # Spostiamo il driver in una posizione nota e diamo i permessi
+        sudo mv ~/chromedriver-linux64/chromedriver /usr/bin/chromedriver
+        sudo chmod +x /usr/bin/chromedriver
 
     - name: Rimuovi driver in cache (Sblocca versione)
       run: |
