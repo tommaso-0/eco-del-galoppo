@@ -79,7 +79,7 @@ options.add_argument('--disable-dev-shm-usage')
 
 try:
     # Rimosso il percorso locale, il cloud troverà da solo la sua versione di Chrome
-    driver = uc.Chrome(options=options, use_subprocess=True)
+    driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
     
     blocco_notizie_dinamico = recupera_notizie(driver)
     sito_html = f"""

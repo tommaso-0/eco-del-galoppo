@@ -1,24 +1,82 @@
-<br><div style='border:1px solid #000; padding:10px;'><b>Errore generico di elaborazione:</b> Message: session not created: cannot connect to chrome at 127.0.0.1:46035
-from session not created: This version of ChromeDriver only supports Chrome version 151
-Current browser version is 150.0.7871.0; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
-Stacktrace:
-#0 0x5638e747873a <unknown>
-#1 0x5638e6de8759 <unknown>
-#2 0x5638e6e2e63f <unknown>
-#3 0x5638e6e2d400 <unknown>
-#4 0x5638e6e2250f <unknown>
-#5 0x5638e6e72b36 <unknown>
-#6 0x5638e6e7221c <unknown>
-#7 0x5638e6e314c2 <unknown>
-#8 0x5638e6e32341 <unknown>
-#9 0x5638e743d660 <unknown>
-#10 0x5638e743bcca <unknown>
-#11 0x5638e7426755 <unknown>
-#12 0x5638e743c99a <unknown>
-#13 0x5638e740e440 <unknown>
-#14 0x5638e7463bb8 <unknown>
-#15 0x5638e7463d55 <unknown>
-#16 0x5638e74772ee <unknown>
-#17 0x7f78a2a9caa4 <unknown>
-#18 0x7f78a2b29c6c <unknown>
-</div></body></html>
+
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>L'Eco del Galoppo</title>
+        <style>
+            body { font-family: 'Courier New', Courier, monospace; background-color: #f4f4f4; color: #111; margin: 0; padding: 15px; }
+            .header { text-align: center; border-bottom: 4px double #000; padding-bottom: 10px; margin-bottom: 20px; }
+            .header h1 { margin: 0; font-family: 'Georgia', serif; font-size: 32px; text-transform: uppercase; font-weight: bold; }
+            .header p.sottotitolo { margin: 5px 0 0 0; font-family: 'Georgia', serif; font-style: italic; font-size: 14px; }
+            
+            .box-storico { border: 2px dashed #000; padding: 15px; margin-bottom: 20px; background-color: #fff; }
+            .box-titolo { font-weight: bold; text-align: center; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase; }
+            
+            .titolo-sezione { font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }
+            
+            .sezione-news-container {
+                max-height: 250px; 
+                overflow-y: auto; 
+                border: 1px solid #ccc; 
+                padding: 15px; 
+                background: #fff;
+                margin-bottom: 30px;
+                border-top: 4px double #000;
+            }
+            
+            .sezione-news-container::-webkit-scrollbar { width: 8px; }
+            .sezione-news-container::-webkit-scrollbar-track { background: #f1f1f1; border-left: 1px solid #ddd; }
+            .sezione-news-container::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+            .sezione-news-container::-webkit-scrollbar-thumb:hover { background: #555; }
+
+            .news-item { margin-bottom: 15px; }
+            .news-item h4 { margin: 0 0 6px 0; font-size: 14px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }
+            
+            .news-item h4 a { color: #111; text-decoration: none; display: block; }
+            .news-item h4 a:hover { text-decoration: underline; color: #555; }
+            
+            .news-item .fonte { font-size: 11px; color: #333; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed #999; display: inline-block; margin-bottom: 4px; }
+            
+            details.ippodromo { background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }
+            summary.main-tendina { background-color: #222; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }
+            summary.main-tendina::-webkit-details-marker { display: none; }
+            summary.main-tendina::before { content: '[+] '; font-family: monospace; }
+            details[open] > summary.main-tendina::before { content: '[-] '; }
+            
+            details.corsa { margin-bottom: 5px; border: 1px solid #ccc; background-color: #fafafa; }
+            summary.sub-tendina { background-color: #e0e0e0; color: #000; padding: 10px; font-weight: bold; font-size: 13px; cursor: pointer; list-style: none; border-bottom: 1px solid #aaa; text-transform: uppercase; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+            summary.sub-tendina::-webkit-details-marker { display: none; }
+            summary.sub-tendina::before { content: '> '; font-size: 12px; font-family: monospace; font-weight: bold; }
+            details[open] > summary.sub-tendina::before { content: 'v '; }
+            
+            .badge-ora { background: #e0e0e0; color: #000; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #999; letter-spacing: 0.5px; }
+            .badge-distanza { background: #444; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #222; letter-spacing: 0.5px; }
+            
+            table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; background-color: #fff; }
+            th, td { padding: 10px 5px; border-bottom: 1px dashed #ccc; }
+            th { border-bottom: 2px solid #000; background-color: #eee; text-transform: uppercase; }
+            .num { font-weight: bold; width: 35px; text-align: center; }
+            .etichetta-estero { font-size: 11px; color: #fff; background: #555; padding: 2px 6px; margin-left: 10px; border-radius: 4px; vertical-align: middle; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>L'Eco del Galoppo</h1>
+            <p class="sottotitolo">"La nostra dose quotidiana di zoccoli e gloria."</p>
+            <p class="sottotitolo" style="font-size: 12px; margin-top: 5px; text-transform: uppercase; border-top: 1px solid #000; display: inline-block; padding-top: 5px;">Edizione del: 19/07/2026</p>
+        </div>
+        
+        <div class="box-storico">
+            <div class="box-titolo">*** Il Cavallo del Giorno ***</div>
+            <b>ERRORE ARCHIVIO</b><br><span style="font-size: 13px; display: inline-block; margin-top: 5px;">Il file memoir.txt e vuoto o formattato male.</span>
+        </div>
+
+        <div class="titolo-sezione">Rassegna Stampa Internazionale</div>
+        <div class="sezione-news-container">
+            <div class="news-item"><div class="fonte">ITALIAN POST RACING</div><h4>Nessuna notizia rilevante al momento.</h4></div><div class="news-item"><div class="fonte">EQUOS (GALOPPO)</div><h4>Nessuna notizia rilevante al momento.</h4></div><div class="news-item"><div class="fonte">RACING POST</div><h4><a href="https://www.racingpost.com/free-bets/" target="_blank">FREE BETSCheck out all our Offers on our Free Bets pages</a></h4><h4><a href="https://www.racingpost.com/news/britain/i-know-how-quickly-it-can-change-how-a-serious-injury-taught-saffie-osborne-to-stay-grounded-as-big-race-win-continues-brilliant-year-a9zCj5Q5eMED/" target="_blank">'I know how quickly it can change' - how a serious injury taught Saffie Osborne to stay grounded as big-race win continues brilliant year</a></h4><h4><a href="https://www.racingpost.com/news/opinion/comment/ive-been-handed-12-months-of-emails-between-the-bha-and-the-gambling-commission-and-they-paint-a-sorry-picture-of-what-racing-is-up-against-ahZT48d8bZJH/" target="_blank">I've been handed 12 months of emails between the BHA and the Gambling Commission - and they paint a sorry picture of what racing is up against</a></h4><h4><a href="https://www.racingpost.com/news/features/series/i-napped-a-50-1-winner-and-ive-still-got-the-picture-in-my-office-legendary-tipster-henry-rix-on-how-hes-banged-in-winners-for-30-years-aFvsp0c76mnG/" target="_blank">'I napped a 50-1 winner and I've still got the picture in my office' - legendary tipster Henry Rix on how he's banged in winners for 30 years</a></h4><h4><a href="https://www.racingpost.com/news/features/regulars/johanna-walsh-adds-to-special-bunch-of-middle-distance-fillies-but-its-another-classic-winner-who-has-me-really-excited-a641y9w9CvA0/" target="_blank">Johanna Walsh adds to special bunch of middle-distance fillies - but it's another Classic winner who has me really excited</a></h4></div><div class="news-item"><div class="fonte">TDN EUROPE</div><h4><a href="https://visitor.r20.constantcontact.com/manage/optin?v=001emHU8ZhrsEajJ7wAchg-Q0BVk4IZqcgudN44sPgrKIw215QhAC5sOZpiX2mrUIPZV0h_h2A4HEEvukxvIEvpdYgT6ykDs9chd4YAtYY2nZzhd0K6eEyx2zOnhVYTOI5e5sP3SaMDOnutKM6JHYKayGwukK-TLM2vL2HpHR34Q_n7wQDJg1T7y03OUFUnvNn_vWUsgwpBZ_I%3D" target="_blank">CLICK HERE TO SUBSCRIBE TO THE TDN FOR FREE!</a></h4><h4><a href="https://www.thoroughbreddailynews.com/tag/g1-qatar-prix-de-larc-de-triomphe-predictions/" target="_blank">G1 Qatar Prix de l'Arc de Triomphe predictions</a></h4><h4><a href="https://www.thoroughbreddailynews.com/advantage-persian-force-but-all-to-play-for-in-first-season-sire-battle/" target="_blank">Advantage Persian Force, But All To Play For In First-Season Sire Battle</a></h4><h4><a href="https://www.thoroughbreddailynews.com/stakes-breakthrough-for-ace-studs-millionaire-superior-choice/" target="_blank">Stakes Breakthrough For Ace Stud's Millionaire Superior Choice</a></h4><h4><a href="https://www.thoroughbreddailynews.com/first-tdn-rising-star-for-state-of-rest-as-star-of-state-powers-to-impressive-nine-length-win/" target="_blank">First TDN Rising Star for State Of Rest as Star Of State Powers to Impressive Nine-Length Win</a></h4></div><div class="news-item"><div class="fonte">ASIAN RACING REPORT</div><h4><a href="https://asianracingreport.com/the-2026-bmw-hong-kong-derby/" target="_blank">TechTeam RatingsThe 2026 BMW Hong Kong DerbyLittle Paradise is set to go one better in Sunday's BMW Hong Kong Derby after being severely inconvenienced in last start's prelude, with the Tech Team rating him a clear top pick at value odds.</a></h4><h4><a href="https://asianracingreport.com/little-paradise-and-romantic-warrior-set-to-dominate-on-sunday/" target="_blank">TechTeam RatingsLittle Paradise and Romantic Warrior set to dominate on SundayWith a rating of 120+ in the Classic Cup and Romantic Warrior on a near-unbeatable 127 in the Gold Cup, the Tech Team previews Sunday's twin features and every race on the support card.</a></h4><h4><a href="https://asianracingreport.com/little-paradise-the-next-golden-sixty/" target="_blank">TechTeam RatingsLittle Paradise the next Golden SixtyTechnical analysis suggests Little Paradise, who dominated The Hong Kong Classic Mile with a rating of 77.5, is on track to match the legendary Golden Sixty's career trajectory with a projected peak rating of 84—the same level achieved by Hong Kong's greatest champions.</a></h4><h4><a href="https://asianracingreport.com/form-pointers-up-and-comers/" target="_blank">TechTeam RatingsForm Pointers – Up and comers</a></h4><h4><a href="https://asianracingreport.com/the-happy-valley-review-wednesday-february-28/" target="_blank">TechTeam RatingsThe Happy Valley Review: Wednesday February 28</a></h4></div>
+        </div>
+        
+        <div class="titolo-sezione">Partenti di Oggi</div>
+    <p><em>Nessuna corsa al galoppo in programma per oggi.</em></p></body></html>
