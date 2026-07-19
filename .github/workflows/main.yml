@@ -33,6 +33,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y google-chrome-stable
 
+    - name: Rimuovi driver in cache (Sblocca versione)
+      run: |
+        rm -rf ~/.cache/undetected-chromedriver
+        rm -rf ~/.wdm
+
     - name: Avvia le rotative
       run: python finale.py
 
