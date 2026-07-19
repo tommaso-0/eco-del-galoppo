@@ -1,0 +1,35 @@
+name: Stampa L'Eco del Galoppo
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # Gira ogni giorno alle 08:00 UTC
+  workflow_dispatch: # Permette di avviarlo anche manualmente con un bottone
+
+jobs:
+  stampa:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Preleva i file della redazione
+      uses: actions/checkout@v3
+
+    - name: Installa Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Installa librerie e Chrome
+      run: |
+        pip install -r requirements.txt
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
+    - name: Avvia le rotative (Esegui lo script)
+      run: python giornale.py
+
+    - name: Salva l'edizione odierna su GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        keep_files: false
