@@ -12,9 +12,11 @@ HTML_OUTPUT = "eco_del_galoppo.html"
 sito_html = ""
 
 try:
+    import os
+    print(f"DEBUG: File presenti nella cartella: {os.listdir('.')}")
     with open("memoir.txt", "r", encoding="utf-8") as f:
         linee = [line.strip() for line in f if "|" in line]
-    
+        
     if linee:
         scelta = random.choice(linee)
         nome_campione, storia_campione = scelta.split("|", 1)
@@ -176,17 +178,21 @@ try:
     
     link_validi = []
     
-    for menu in menu_da_visitare:
+for menu in menu_da_visitare:
         driver.get(menu['url'])
         time.sleep(4) 
         soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
         
-        for a_tag in soup_menu.find_all('a', href=True):
+        links = soup_menu.find_all('a', href=True)
+        print(f"DEBUG: Trovati {len(links)} link totali su {menu['nome']}") # Questo ti aiuterà a capire
+        
+        for a_tag in links:
             href = a_tag['href'].strip()
             testo = a_tag.get_text(strip=True).upper()
             
-            if '.asp?' in href.lower() and 'TG=T' not in href.upper():
-                if 'CORSA=0' in href.upper() or testo == 'C':
+            # Logica meno rigida: cerchiamo link che sembrano corse
+            if "asp" in href.lower() and (len(testo) > 2 or "C" in testo):
+                # ... resto della logica di estrazione ...
                     
                     match_ippo = re.search(r'IPPO=([^&]+)', href.upper())
                     nome_tendina = match_ippo.group(1).replace("%20", " ").replace("+", " ").upper() if match_ippo else "GARA"
