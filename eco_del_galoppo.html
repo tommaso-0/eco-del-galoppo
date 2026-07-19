@@ -6,53 +6,58 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>L'Eco del Galoppo</title>
         <style>
-            body { font-family: 'Georgia', serif; background-color: #f4f3ee; color: #2b2b2b; margin: 0; padding: 20px; line-height: 1.6; }
-            .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border: 1px solid #d3d3d3; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-            .header { text-align: center; border-bottom: 5px double #111; padding-bottom: 20px; margin-bottom: 30px; }
-            .header h1 { margin: 0; font-family: 'Georgia', serif; font-size: 38px; text-transform: uppercase; font-weight: bold; letter-spacing: 2px; }
-            .header p.sottotitolo { margin: 10px 0 0 0; font-style: italic; font-size: 16px; color: #555; }
-            .data-edizione { font-size: 13px; text-transform: uppercase; border-top: 1px solid #111; display: inline-block; padding-top: 5px; margin-top: 10px; font-weight: bold; }
-            .box-storico { border: 2px solid #8b0000; padding: 20px; margin-bottom: 40px; background-color: #faf9f6; border-radius: 4px; }
-            .box-titolo { font-weight: bold; text-align: center; border-bottom: 1px solid #8b0000; padding-bottom: 10px; margin-bottom: 15px; text-transform: uppercase; color: #8b0000; font-size: 18px; }
-            .storico-testo { font-size: 15px; text-align: justify; }
-            .titolo-sezione { font-weight: bold; font-size: 24px; text-transform: uppercase; border-bottom: 3px solid #111; padding-bottom: 5px; margin-bottom: 25px; margin-top: 40px; }
-            .news-item { background: #fff; padding: 25px; margin-bottom: 25px; border: 1px solid #e0e0e0; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
-            .news-item .fonte { font-family: 'Arial', sans-serif; font-size: 14px; font-weight: bold; color: #8b0000; text-transform: uppercase; border-bottom: 2px solid #8b0000; padding-bottom: 5px; margin-bottom: 15px; display: inline-block; letter-spacing: 1px; }
-            .singola-notizia { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #ddd; }
-            .singola-notizia:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-            .singola-notizia a { color: #1a1a1a; text-decoration: none; font-size: 17px; font-weight: bold; display: block; line-height: 1.4; transition: color 0.2s; }
-            .singola-notizia a:hover { color: #8b0000; text-decoration: underline; }
-            details.ippodromo { background-color: #fff; border: 1px solid #111; margin-bottom: 20px; border-radius: 4px; overflow: hidden; }
-            summary.main-tendina { background-color: #2b2b2b; color: #fff; padding: 15px; font-weight: bold; font-size: 16px; cursor: pointer; list-style: none; text-transform: uppercase; }
-            details.corsa { margin: 10px; border: 1px solid #ccc; background-color: #fafafa; }
-            summary.sub-tendina { background-color: #e9e9e9; color: #111; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer; list-style: none; border-bottom: 1px solid #bbb; text-transform: uppercase; }
-            .badge-ora, .badge-distanza { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #999; margin-left: 10px; font-family: 'Arial', sans-serif; }
-            .badge-ora { background: #fff; color: #111; }
-            .badge-distanza { background: #555; color: #fff; border-color: #222; }
-            table { width: 100%; border-collapse: collapse; font-size: 14px; background-color: #fff; font-family: 'Arial', sans-serif; }
-            th, td { padding: 12px 8px; border-bottom: 1px solid #eee; text-align: left; }
-            th { background-color: #f5f5f5; text-transform: uppercase; color: #555; font-size: 12px; }
-            .num { font-weight: bold; width: 40px; text-align: center; background: #fafafa; border-right: 1px solid #eee; }
-            .etichetta-estero { font-size: 11px; color: #fff; background: #8b0000; padding: 3px 6px; margin-left: 10px; border-radius: 3px; font-family: 'Arial', sans-serif; }
+            body { font-family: 'Courier New', Courier, monospace; background-color: #f4f4f4; color: #111; margin: 0; padding: 15px; }
+            .header { text-align: center; border-bottom: 4px double #000; padding-bottom: 10px; margin-bottom: 20px; }
+            .header h1 { margin: 0; font-family: 'Georgia', serif; font-size: 32px; text-transform: uppercase; font-weight: bold; }
+            .header p.sottotitolo { margin: 5px 0 0 0; font-family: 'Georgia', serif; font-style: italic; font-size: 14px; }
+            
+            .box-storico { border: 2px dashed #000; padding: 15px; margin-bottom: 20px; background-color: #fff; }
+            .box-titolo { font-weight: bold; text-align: center; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase; }
+            
+            .sezione-news { margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }
+            .titolo-sezione { font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }
+            .news-item { margin-bottom: 15px; }
+            .news-item h4 { margin: 0 0 4px 0; font-size: 15px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }
+            .news-item .fonte { font-size: 11px; color: #333; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed #999; display: inline-block; margin-bottom: 4px; }
+            
+            details.ippodromo { background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }
+            summary.main-tendina { background-color: #222; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }
+            summary.main-tendina::-webkit-details-marker { display: none; }
+            summary.main-tendina::before { content: '[+] '; font-family: monospace; }
+            details[open] > summary.main-tendina::before { content: '[-] '; }
+            
+            details.corsa { margin-bottom: 5px; border: 1px solid #ccc; background-color: #fafafa; }
+            summary.sub-tendina { background-color: #e0e0e0; color: #000; padding: 10px; font-weight: bold; font-size: 13px; cursor: pointer; list-style: none; border-bottom: 1px solid #aaa; text-transform: uppercase; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+            summary.sub-tendina::-webkit-details-marker { display: none; }
+            summary.sub-tendina::before { content: '► '; font-size: 11px; }
+            details[open] > summary.sub-tendina::before { content: '▼ '; }
+            
+            .badge-ora { background: #e0e0e0; color: #000; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #999; letter-spacing: 0.5px; }
+            .badge-distanza { background: #444; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #222; letter-spacing: 0.5px; }
+            
+            table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; background-color: #fff; }
+            th, td { padding: 10px 5px; border-bottom: 1px dashed #ccc; }
+            th { border-bottom: 2px solid #000; background-color: #eee; text-transform: uppercase; }
+            .num { font-weight: bold; width: 35px; text-align: center; }
+            .etichetta-estero { font-size: 11px; color: #fff; background: #555; padding: 2px 6px; margin-left: 10px; border-radius: 4px; vertical-align: middle; }
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="header">
-                <h1>L'Eco del Galoppo</h1>
-                <p class="sottotitolo">"La nostra dose quotidiana di zoccoli e gloria."</p>
-                <div class="data-edizione">Edizione del: 19/07/2026</div>
-            </div>
-            
-            <div class="box-storico">
-                <div class="box-titolo">*** Il Cavallo del Giorno ***</div>
-                <div class="storico-testo"><b>IL CAVALLO DEL GIORNO</b><br><br>Nessuna storia disponibile nell'archivio per l'edizione odierna.</div>
-            </div>
+        <div class="header">
+            <h1>L'Eco del Galoppo</h1>
+            <p class="sottotitolo">"La nostra dose quotidiana di zoccoli e gloria."</p>
+            <p class="sottotitolo" style="font-size: 12px; margin-top: 5px; text-transform: uppercase; border-top: 1px solid #000; display: inline-block; padding-top: 5px;">Edizione del: 19/07/2026</p>
+        </div>
+        
+        <div class="box-storico">
+            <div class="box-titolo">*** Il Cavallo del Giorno ***</div>
+            <b>TAP DANCE CITY</b><br><span style="font-size: 13px;">Indimenticabile dominatore della Japan Cup del 2003. Sotto una pioggia battente, ha imposto un ritmo infernale fin dalla partenza, trionfando in solitaria con un distacco abissale di 9 lunghezze.</span>
+        </div>
 
+        <div class="sezione-news">
             <div class="titolo-sezione">Rassegna Stampa Internazionale</div>
-            <div class="sezione-news-container">
-                <div class="news-item"><div class="fonte">ITALIAN POST RACING</div><div class="singola-notizia">Nessuna notizia rilevante.</div></div><div class="news-item"><div class="fonte">EQUOS (GALOPPO)</div><div class="singola-notizia">Nessuna notizia rilevante.</div></div><div class="news-item"><div class="fonte">RACING POST</div><div class="singola-notizia"><a href="https://www.racingpost.com/free-bets/" target="_blank">FREE BETSCheck out all our Offers on our Free Bets pages</a></div><div class="singola-notizia"><a href="https://www.racingpost.com/news/festivals/glorious-goodwood/roger-varian-confident-rahiebb-will-return-to-his-best-in-goodwood-cup-and-relishing-taking-on-ascot-gold-cup-1-2-asvLA7u4ecBN/" target="_blank">Roger Varian 'confident' Rahiebb will return to his best in Goodwood Cup as trainer puts forward reason for Royal Ascot no-show</a></div><div class="singola-notizia"><a href="https://www.racingpost.com/news/features/interviews/sometimes-you-know-immediately-that-someone-is-special-meet-the-shining-star-of-irish-racing-who-ted-walsh-cant-stop-raving-about-aFWFv4P57PPk/" target="_blank">‘Sometimes you know immediately that someone is special’ - meet the shining star of Irish racing who Ted Walsh can’t stop raving about</a></div><div class="singola-notizia"><a href="https://www.racingpost.com/news/big-race-latest/kalpana-2.0-andrew-balding-says-brilliant-mare-is-an-even-better-model-in-2026-as-he-relishes-king-george-battle-acYL14F1ESye" target="_blank">Kalpana 2.0 - Andrew Balding says brilliant mare is an even better model in 2026 as he relishes King George battle</a></div><div class="singola-notizia"><a href="https://www.racingpost.com/news/industry/politics/speculation-mounts-as-to-who-andy-burnham-will-appoint-to-cabinet-when-he-becomes-prime-minister-on-monday-aGrcS2D1qqBj/" target="_blank">Andy Burnham takes over as prime minister on Monday - and several key figures in his expected cabinet have racing and gambling in their sights</a></div></div><div class="news-item"><div class="fonte">TDN EUROPE</div><div class="singola-notizia"><a href="https://visitor.r20.constantcontact.com/manage/optin?v=001emHU8ZhrsEajJ7wAchg-Q0BVk4IZqcgudN44sPgrKIw215QhAC5sOZpiX2mrUIPZV0h_h2A4HEEvukxvIEvpdYgT6ykDs9chd4YAtYY2nZzhd0K6eEyx2zOnhVYTOI5e5sP3SaMDOnutKM6JHYKayGwukK-TLM2vL2HpHR34Q_n7wQDJg1T7y03OUFUnvNn_vWUsgwpBZ_I%3D" target="_blank">CLICK HERE TO SUBSCRIBE TO THE TDN FOR FREE!</a></div><div class="singola-notizia"><a href="https://www.thoroughbreddailynews.com/tag/g1-qatar-prix-de-larc-de-triomphe-predictions/" target="_blank">G1 Qatar Prix de l'Arc de Triomphe predictions</a></div><div class="singola-notizia"><a href="https://www.thoroughbreddailynews.com/stakes-breakthrough-for-ace-studs-millionaire-superior-choice/" target="_blank">Stakes Breakthrough For Ace Stud's Millionaire Superior Choice</a></div><div class="singola-notizia"><a href="https://www.thoroughbreddailynews.com/not-a-bad-substitute-mcmonagle-wins-irish-oaks-on-wells-watsons-johanna-walsh/" target="_blank">'Not A Bad Substitute!': McMonagle Wins Irish Oaks On Wells Watson's Johanna Walsh</a></div><div class="singola-notizia"><a href="https://www.thoroughbreddailynews.com/intriguing-curragh-classic-the-weekend-feature/" target="_blank">Intriguing Curragh Classic The Weekend Feature</a></div></div><div class="news-item"><div class="fonte">ASIAN RACING REPORT</div><div class="singola-notizia"><a href="https://asianracingreport.com/the-2026-bmw-hong-kong-derby/" target="_blank">TechTeam RatingsThe 2026 BMW Hong Kong DerbyLittle Paradise is set to go one better in Sunday's BMW Hong Kong Derby after being severely inconvenienced in last start's prelude, with the Tech Team rating him a clear top pick at value odds.</a></div><div class="singola-notizia"><a href="https://asianracingreport.com/little-paradise-and-romantic-warrior-set-to-dominate-on-sunday/" target="_blank">TechTeam RatingsLittle Paradise and Romantic Warrior set to dominate on SundayWith a rating of 120+ in the Classic Cup and Romantic Warrior on a near-unbeatable 127 in the Gold Cup, the Tech Team previews Sunday's twin features and every race on the support card.</a></div><div class="singola-notizia"><a href="https://asianracingreport.com/little-paradise-the-next-golden-sixty/" target="_blank">TechTeam RatingsLittle Paradise the next Golden SixtyTechnical analysis suggests Little Paradise, who dominated The Hong Kong Classic Mile with a rating of 77.5, is on track to match the legendary Golden Sixty's career trajectory with a projected peak rating of 84—the same level achieved by Hong Kong's greatest champions.</a></div><div class="singola-notizia"><a href="https://asianracingreport.com/form-pointers-up-and-comers/" target="_blank">TechTeam RatingsForm Pointers – Up and comers</a></div><div class="singola-notizia"><a href="https://asianracingreport.com/the-happy-valley-review-wednesday-february-28/" target="_blank">TechTeam RatingsThe Happy Valley Review: Wednesday February 28</a></div></div>
-            </div>
-            
-            <div class="titolo-sezione">Partenti di Oggi</div>
-    <p><em>Nessuna corsa al galoppo in programma per oggi.</em></p></div></body></html>
+            <div class="news-item"><div class="fonte">ITALIAN POST RACING</div><h4>Nessuna notizia rilevante al momento.</h4></div><div class="news-item"><div class="fonte">EQUOS (GALOPPO)</div><h4>Nessuna notizia rilevante al momento.</h4></div><div class="news-item"><div class="fonte">RACING POST</div><h4>I'm sick and tired of living in an information vacuum - trainers must be forced to keep us all in the loop</h4></div><div class="news-item"><div class="fonte">TDN EUROPE</div><h4>TDN Europe 2022 Arc Predictions</h4></div><div class="news-item"><div class="fonte">ASIAN RACING REPORT</div><h4>The 2026 BMW Hong Kong Derby</h4><h4>Little Paradise and Romantic Warrior set to dominate on Sunday</h4></div>
+        </div>
+        
+        <div class="titolo-sezione">Partenti di Oggi</div>
+    <p><em>Nessuna corsa al galoppo in programma per oggi.</em></p></body></html>
