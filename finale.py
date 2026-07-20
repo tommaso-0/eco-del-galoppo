@@ -151,23 +151,23 @@ def recupera_notizie_web(driver):
             html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list"><li><i>Collegamento alla redazione fallito.</i></li></ul></div>'
 
     return html_news
+    
 # ==========================================
-# 4. RISULTATI DI IERI (Reset di Sessione e Filtro Negativo)
+# 4. RISULTATI DI IERI (Isolamento in Nuova Scheda)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
-    print("   [📻] Intercettazione Risultati Ippica.biz (Reset Sessione)...")
+    print("   [📻] Intercettazione Risultati Ippica.biz (Apertura Nuova Scheda Vergine)...")
     try:
-        # 1. Pulizia drastica: azzeriamo il browser per non confondere il server vecchio
-        driver.get("about:blank")
-        driver.delete_all_cookies()
+        # 1. Apriamo una nuova scheda pulita e ci spostiamo sopra
+        driver.execute_script("window.open('');")
+        driver.switch_to.window(driver.window_handles[-1])
         
-        # 2. Entriamo e "bussiamo due volte" (Refresh) per forzare il pass di sessione
+        # 2. Entriamo su Ippica.biz
         driver.get("https://www.ippica.biz/")
-        time.sleep(5) 
-        driver.refresh() # IL SEGRETO E' QUI: ricaricare la pagina assicura il cookie
-        time.sleep(6) 
+        time.sleep(8) 
         
+        # 3. L'aspirapolvere magico
         js_magico = """
         function estraiTutto(win) {
             let html_totale = "";
@@ -198,8 +198,8 @@ def recupera_risultati_ieri(driver):
                         href_lower = href.lower()
                         num_corsa = a_tag.get_text(strip=True)
                         
-                        # LOGICA INFALLIBILE: Prendiamo tutti i link zoom, TRANNE 'par.asp' (partenti futuri)
-                        if 'javascript:zoom' in href_lower and 'par.asp' not in href_lower:
+                        # FILTRO A PROVA DI BOMBA: minuscolo, deve avere zoom e risris.asp (niente par.asp)
+                        if 'javascript:zoom' in href_lower and 'risris.asp' in href_lower:
                             try:
                                 url_raw = href.split("zoom(")[1].split(")")[0]
                                 url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
@@ -213,6 +213,10 @@ def recupera_risultati_ieri(driver):
                             except:
                                 pass
         
+        # 4. Lavoro finito: Chiudiamo la scheda e torniamo a quella principale
+        driver.close()
+        driver.switch_to.window(driver.window_handles[0])
+        
         if link_trovati:
             html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
             for l in link_trovati:
@@ -223,9 +227,12 @@ def recupera_risultati_ieri(driver):
             
     except Exception as e:
         html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
+        # Paracadute: se c'è un errore, chiudiamo comunque la scheda in più
+        if len(driver.window_handles) > 1:
+            driver.close()
+            driver.switch_to.window(driver.window_handles[0])
         
     return html_risultati
-    
 # ==========================================
 # 5. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
