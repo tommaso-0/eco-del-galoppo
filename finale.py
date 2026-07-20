@@ -13,7 +13,7 @@ DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
 # ==========================================
-# 1. IL CAVALLO DEL GIORNO (Dal tuo file memoir.txt)
+# 1. IL CAVALLO DEL GIORNO
 # ==========================================
 campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
 
@@ -30,7 +30,7 @@ except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
 # ==========================================
-# 2. RECUPERO NOTIZIE (Con link cliccabili e filtro anti-spazzatura)
+# 2. RECUPERO NOTIZIE (Nuova "Rete a strascico")
 # ==========================================
 def recupera_notizie(driver):
     html_news = ""
@@ -49,19 +49,28 @@ def recupera_notizie(driver):
             time.sleep(4) 
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             
-            titoli = soup.find_all(['h1', 'h2', 'h3'])
             notizie_estratte = []
             
-            for t in titoli:
-                link_tag = t.find('a') 
-                if link_tag and link_tag.has_attr('href'):
-                    testo = link_tag.get_text(strip=True)
-                    if len(testo) > 30 and not any(fuffa in testo for fuffa in ["Menu", "Search", "Cookie", "Privacy"]):
-                        url_notizia = urljoin(fonte['url'], link_tag['href'])
+            # Peschiamo TUTTI i link della pagina senza guardare in che tag si trovano
+            tutti_i_link = soup.find_all('a', href=True)
+            
+            for a_tag in tutti_i_link:
+                testo = a_tag.get_text(strip=True)
+                
+                # FILTRO 1: Deve essere lungo (scarta "Home", "Galoppo", "Login")
+                if len(testo) > 35:
+                    # FILTRO 2: Parole proibite da ignorare
+                    testo_lower = testo.lower()
+                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy"]
+                    
+                    if not any(parola in testo_lower for parola in fuffa):
+                        url_notizia = urljoin(fonte['url'], a_tag['href'])
                         
+                        # Evitiamo doppioni (stesso titolo ripetuto)
                         if not any(testo == n['titolo'] for n in notizie_estratte):
                             notizie_estratte.append({'titolo': testo, 'url': url_notizia})
                             
+                # Ci bastano le prime 3 notizie valide
                 if len(notizie_estratte) == 3: 
                     break
 
@@ -85,8 +94,8 @@ options = uc.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
-options.add_argument('--disable-gpu') # Parametro salva-vita per GitHub Actions
-options.add_argument('--window-size=1920,1080') # Forza la risoluzione per non confondere i siti
+options.add_argument('--disable-gpu') 
+options.add_argument('--window-size=1920,1080') 
 options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 try:
