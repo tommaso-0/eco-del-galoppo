@@ -5,15 +5,17 @@ import time
 import re
 import random
 import os
+import feedparser
 from datetime import datetime
 
 print("📰 Accensione rotative de 'L'Eco del Galoppo'...")
 
-DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
+DATA_OGGI = datetime.now()
+STR_OGGI = DATA_OGGI.strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
 # ==========================================
-# 1. IL CAVALLO DEL GIORNO
+# 1. IL CAVALLO DEL GIORNO (Dal memoir.txt)
 # ==========================================
 campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
 
@@ -29,67 +31,129 @@ try:
 except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
+
 # ==========================================
-# 2. RECUPERO NOTIZIE (Nuova "Rete a strascico")
+# 2. CALENDARIO G1 DINAMICO (DATABASE TITANICO)
 # ==========================================
-def recupera_notizie(driver):
+def genera_calendario_g1():
+    # Il più grande archivio G1 hardcoded per il 2026/2027
+    g1_database = [
+        # --- ASIA (GIAPPONE, HONG KONG, DUBAI) ---
+        {"nome": "Sprinters Stakes (JPN)", "data": "04/10/2026"},
+        {"nome": "Shuka Sho (JPN)", "data": "18/10/2026"},
+        {"nome": "Kikuka Sho - St. Leger (JPN)", "data": "25/10/2026"},
+        {"nome": "Tenno Sho Autumn (JPN)", "data": "01/11/2026"},
+        {"nome": "Queen Elizabeth II Cup (JPN)", "data": "15/11/2026"},
+        {"nome": "Mile Championship (JPN)", "data": "22/11/2026"},
+        {"nome": "Japan Cup (JPN)", "data": "29/11/2026"},
+        {"nome": "Champions Cup (JPN)", "data": "06/12/2026"},
+        {"nome": "Hong Kong Cup (HK)", "data": "13/12/2026"},
+        {"nome": "Hong Kong Vase (HK)", "data": "13/12/2026"},
+        {"nome": "Arima Kinen (JPN)", "data": "27/12/2026"},
+        {"nome": "Saudi Cup (KSA)", "data": "20/02/2027"},
+        {"nome": "Dubai World Cup (UAE)", "data": "27/03/2027"},
+        {"nome": "Dubai Sheema Classic (UAE)", "data": "27/03/2027"},
+        {"nome": "Oka Sho - 1000 Guineas (JPN)", "data": "11/04/2027"},
+        {"nome": "Satsuki Sho - 2000 Guineas (JPN)", "data": "18/04/2027"},
+        {"nome": "Tenno Sho Spring (JPN)", "data": "02/05/2027"},
+        {"nome": "Tokyo Yushun - Derby (JPN)", "data": "30/05/2027"},
+        {"nome": "Takarazuka Kinen (JPN)", "data": "27/06/2027"},
+        
+        # --- EUROPA (UK, IRE, FRA, ITA) ---
+        {"nome": "Sussex Stakes (UK)", "data": "29/07/2026"},
+        {"nome": "Juddmonte International (UK)", "data": "19/08/2026"},
+        {"nome": "Prix Jacques le Marois (FRA)", "data": "16/08/2026"},
+        {"nome": "Irish Champion Stakes (IRE)", "data": "12/09/2026"},
+        {"nome": "Prix de l'Arc de Triomphe (FRA)", "data": "04/10/2026"},
+        {"nome": "Champion Stakes (UK)", "data": "17/10/2026"},
+        {"nome": "Premio Jockey Club (ITA)", "data": "18/10/2026"},
+        {"nome": "Premio Roma (ITA)", "data": "08/11/2026"},
+        {"nome": "2000 Guineas Stakes (UK)", "data": "01/05/2027"},
+        {"nome": "Derby Italiano (ITA)", "data": "23/05/2027"},
+        {"nome": "Epsom Derby (UK)", "data": "05/06/2027"},
+        {"nome": "Prix du Jockey Club (FRA)", "data": "06/06/2027"},
+        {"nome": "Royal Ascot - Gold Cup (UK)", "data": "17/06/2027"},
+        
+        # --- USA & OCEANIA ---
+        {"nome": "Cox Plate (AUS)", "data": "24/10/2026"},
+        {"nome": "Melbourne Cup (AUS)", "data": "03/11/2026"},
+        {"nome": "Breeders' Cup Turf (USA)", "data": "07/11/2026"},
+        {"nome": "Breeders' Cup Classic (USA)", "data": "07/11/2026"},
+        {"nome": "Pegasus World Cup (USA)", "data": "23/01/2027"},
+        {"nome": "Kentucky Derby (USA)", "data": "01/05/2027"}
+    ]
+    
+    prossime_corse = []
+    for corsa in g1_database:
+        data_corsa = datetime.strptime(corsa["data"], "%d/%m/%Y")
+        # Prende solo le corse da oggi in poi
+        if data_corsa >= DATA_OGGI:
+            giorni_mancanti = (data_corsa - DATA_OGGI).days
+            prossime_corse.append((corsa["nome"], corsa["data"], giorni_mancanti))
+            
+    # Ordiniamo per data imminente e prendiamo le prossime 5
+    prossime_corse.sort(key=lambda x: x[2])
+    
+    html_cal = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;'>"
+    for c in prossime_corse[:5]:
+        etichetta = f"Tra {c[2]} giorni" if c[2] > 0 else "OGGI!"
+        # Diventa rosso sangue quando manca meno di una settimana
+        colore_badge = "#8b0000" if c[2] < 7 else "#333" 
+        html_cal += f"""
+        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+            <div style='font-size: 11px; font-weight: bold; color: {colore_badge}; text-transform: uppercase;'>{etichetta}</div>
+            <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>{c[0]}</div>
+            <div style='font-size: 12px; color: #555;'>📅 {c[1]}</div>
+        </div>
+        """
+    html_cal += "</div>"
+    return html_cal
+
+# ==========================================
+# 3. RECUPERO NOTIZIE (MOTORE RSS INFALLIBILE)
+# ==========================================
+def recupera_notizie_rss():
     html_news = ""
     fonti = [
-        {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it/"},
-        {"nome": "EQUOS (GALOPPO)", "url": "https://equos.it/category/galoppo/"},
-        {"nome": "RACING POST", "url": "https://www.racingpost.com/news/"},
-        {"nome": "TDN EUROPE", "url": "https://www.thoroughbreddailynews.com/tdn-europe/"},
-        {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com/"}
+        {"nome": "EQUOS (GALOPPO)", "url": "https://equos.it/category/galoppo/feed/"},
+        {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it/feed/"},
+        {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com/feed/"},
+        {"nome": "TDN EUROPE", "url": "https://www.thoroughbreddailynews.com/tdn-europe/feed/"}
     ]
 
     for fonte in fonti:
-        print(f"   [📻] Contatto redazione: {fonte['nome']}...")
+        print(f"   [📻] Intercettazione RSS: {fonte['nome']}...")
         try:
-            driver.get(fonte['url'])
-            time.sleep(4) 
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
-            
-            notizie_estratte = []
-            
-            # Peschiamo TUTTI i link della pagina senza guardare in che tag si trovano
-            tutti_i_link = soup.find_all('a', href=True)
-            
-            for a_tag in tutti_i_link:
-                testo = a_tag.get_text(strip=True)
-                
-                # FILTRO 1: Deve essere lungo (scarta "Home", "Galoppo", "Login")
-                if len(testo) > 35:
-                    # FILTRO 2: Parole proibite da ignorare
-                    testo_lower = testo.lower()
-                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy"]
-                    
-                    if not any(parola in testo_lower for parola in fuffa):
-                        url_notizia = urljoin(fonte['url'], a_tag['href'])
-                        
-                        # Evitiamo doppioni (stesso titolo ripetuto)
-                        if not any(testo == n['titolo'] for n in notizie_estratte):
-                            notizie_estratte.append({'titolo': testo, 'url': url_notizia})
-                            
-                # Ci bastano le prime 3 notizie valide
-                if len(notizie_estratte) == 3: 
-                    break
-
+            feed = feedparser.parse(fonte['url'])
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
-            if notizie_estratte:
-                for news in notizie_estratte:
-                    html_news += f'<h4><a href="{news["url"]}" target="_blank" style="color: #111; text-decoration: none;">{news["titolo"]}</a></h4>'
-            else:
-                html_news += '<h4>Nessuna notizia rilevante al momento.</h4>'
-            html_news += '</div>'
             
-        except Exception:
-            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Collegamento fallito.</h4></div>'
+            if feed.entries:
+                # Prendiamo le ultime 3 notizie valide
+                conteggio = 0
+                for entry in feed.entries:
+                    titolo = entry.title
+                    link = entry.link
+                    # Escludiamo eventuali podcast vuoti o pubblicità
+                    if len(titolo) > 10:
+                        html_news += f'<h4><a href="{link}" target="_blank" style="color: #111; text-decoration: none;">{titolo}</a></h4>'
+                        conteggio += 1
+                    if conteggio == 3:
+                        break
+            else:
+                html_news += '<h4>Redazione in silenzio stampa.</h4>'
+            
+            html_news += '</div>'
+        except Exception as e:
+            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Frequenza radio interrotta.</h4></div>'
 
     return html_news
 
 # ==========================================
-# 3. AVVIO DEL MOTORE E IMPAGINATORE HTML
+# 4. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
+blocco_notizie_dinamico = recupera_notizie_rss()
+blocco_calendario = genera_calendario_g1()
+
 options = uc.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
@@ -99,15 +163,9 @@ options.add_argument('--window-size=1920,1080')
 options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 try:
-    print("\n📡 Avvio del sistema multi-radar antiblocco...")
-    driver = uc.Chrome(
-        options=options, 
-        use_subprocess=True,
-        version_main=150
-    )
+    print("\n📡 Avvio del radar per Ippica.biz (Corse & Risultati)...")
+    driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
     
-    blocco_notizie_dinamico = recupera_notizie(driver)
-
     sito_html = f"""
     <!DOCTYPE html>
     <html lang="it">
@@ -127,7 +185,7 @@ try:
             .sezione-news {{ margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }}
             .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }}
             .news-item {{ margin-bottom: 15px; }}
-            .news-item h4 {{ margin: 0 0 4px 0; font-size: 15px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }}
+            .news-item h4 {{ margin: 0 0 6px 0; font-size: 15px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }}
             .news-item h4 a:hover {{ text-decoration: underline !important; }}
             .news-item .fonte {{ font-size: 11px; color: #333; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed #999; display: inline-block; margin-bottom: 4px; }}
             
@@ -157,20 +215,28 @@ try:
         <div class="header">
             <h1>L'Eco del Galoppo</h1>
             <p class="sottotitolo">"La nostra dose quotidiana di zoccoli e gloria."</p>
-            <p class="sottotitolo" style="font-size: 12px; margin-top: 5px; text-transform: uppercase; border-top: 1px solid #000; display: inline-block; padding-top: 5px;">Edizione del: {DATA_OGGI}</p>
+            <p class="sottotitolo" style="font-size: 12px; margin-top: 5px; text-transform: uppercase; border-top: 1px solid #000; display: inline-block; padding-top: 5px;">Edizione del: {STR_OGGI}</p>
         </div>
         
         <div class="box-storico">
             <div class="box-titolo">*** Il Cavallo del Giorno ***</div>
             <b>{campione_oggi['nome']}</b><br><span style="font-size: 13px;">{campione_oggi['storia']}</span>
         </div>
+        
+        <div class="sezione-news" style="background: #e9e9e9; padding: 15px; border: 1px solid #000;">
+            <div class="titolo-sezione" style="border-bottom: 1px dashed #000; padding-bottom: 10px; margin-top: 0;">Road to G1</div>
+            {blocco_calendario}
+        </div>
 
         <div class="sezione-news">
-            <div class="titolo-sezione">Rassegna Stampa Internazionale</div>
+            <div class="titolo-sezione">Rassegna Stampa Internazionale (Feed Diretto)</div>
             {blocco_notizie_dinamico}
         </div>
         
-        <div class="titolo-sezione">Partenti di Oggi</div>
+        <div class="titolo-sezione">Archivio Risultati di Ieri</div>
+        <p style="font-size: 13px; font-style: italic;">(Il radar dei risultati è attivo sulle frequenze di Ippica.biz. Se omologati, compariranno nei dispacci ufficiali sottostanti).</p>
+        
+        <div class="titolo-sezione" style="margin-top: 40px;">Partenti di Oggi</div>
     """
 
     menu_da_visitare = [
@@ -180,6 +246,7 @@ try:
     
     link_validi = []
     
+    # LA TUA LOGICA CORSE BLINDATA
     for menu in menu_da_visitare:
         driver.get(menu['url'])
         time.sleep(5) 
@@ -308,7 +375,7 @@ try:
             sito_html += "</div>\n</details>\n"
 
 except Exception as e:
-    sito_html += f"<br><div style='color:red; border:2px solid red; padding:10px;'><b>Errore improvviso:</b> {e}</div>"
+    sito_html += f"<br><div style='color:red; border:2px solid red; padding:10px;'><b>Errore del radar:</b> {e}</div>"
 
 finally:
     sito_html += "</body></html>"
@@ -318,3 +385,4 @@ finally:
         driver.quit()
     except:
         pass
+    print("Stampa completata con successo.")
