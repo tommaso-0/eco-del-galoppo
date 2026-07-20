@@ -5,7 +5,6 @@ import time
 import re
 import random
 import os
-import feedparser
 from datetime import datetime
 
 print("📰 Accensione rotative de 'L'Eco del Galoppo'...")
@@ -31,14 +30,11 @@ try:
 except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
-
 # ==========================================
 # 2. CALENDARIO G1 DINAMICO (DATABASE TITANICO)
 # ==========================================
 def genera_calendario_g1():
-    # Il più grande archivio G1 hardcoded per il 2026/2027
     g1_database = [
-        # --- ASIA (GIAPPONE, HONG KONG, DUBAI) ---
         {"nome": "Sprinters Stakes (JPN)", "data": "04/10/2026"},
         {"nome": "Shuka Sho (JPN)", "data": "18/10/2026"},
         {"nome": "Kikuka Sho - St. Leger (JPN)", "data": "25/10/2026"},
@@ -59,7 +55,6 @@ def genera_calendario_g1():
         {"nome": "Tokyo Yushun - Derby (JPN)", "data": "30/05/2027"},
         {"nome": "Takarazuka Kinen (JPN)", "data": "27/06/2027"},
         
-        # --- EUROPA (UK, IRE, FRA, ITA) ---
         {"nome": "Sussex Stakes (UK)", "data": "29/07/2026"},
         {"nome": "Juddmonte International (UK)", "data": "19/08/2026"},
         {"nome": "Prix Jacques le Marois (FRA)", "data": "16/08/2026"},
@@ -74,7 +69,6 @@ def genera_calendario_g1():
         {"nome": "Prix du Jockey Club (FRA)", "data": "06/06/2027"},
         {"nome": "Royal Ascot - Gold Cup (UK)", "data": "17/06/2027"},
         
-        # --- USA & OCEANIA ---
         {"nome": "Cox Plate (AUS)", "data": "24/10/2026"},
         {"nome": "Melbourne Cup (AUS)", "data": "03/11/2026"},
         {"nome": "Breeders' Cup Turf (USA)", "data": "07/11/2026"},
@@ -86,18 +80,15 @@ def genera_calendario_g1():
     prossime_corse = []
     for corsa in g1_database:
         data_corsa = datetime.strptime(corsa["data"], "%d/%m/%Y")
-        # Prende solo le corse da oggi in poi
         if data_corsa >= DATA_OGGI:
             giorni_mancanti = (data_corsa - DATA_OGGI).days
             prossime_corse.append((corsa["nome"], corsa["data"], giorni_mancanti))
             
-    # Ordiniamo per data imminente e prendiamo le prossime 5
     prossime_corse.sort(key=lambda x: x[2])
     
     html_cal = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;'>"
     for c in prossime_corse[:5]:
         etichetta = f"Tra {c[2]} giorni" if c[2] > 0 else "OGGI!"
-        # Diventa rosso sangue quando manca meno di una settimana
         colore_badge = "#8b0000" if c[2] < 7 else "#333" 
         html_cal += f"""
         <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
@@ -110,50 +101,127 @@ def genera_calendario_g1():
     return html_cal
 
 # ==========================================
-# 3. RECUPERO NOTIZIE (MOTORE RSS INFALLIBILE)
+# 3. RECUPERO NOTIZIE (Browser Invisibile + Filtro Cinese)
 # ==========================================
-def recupera_notizie_rss():
+def contiene_cinese(testo):
+    return any('\u4e00' <= char <= '\u9fff' for char in testo)
+
+def recupera_notizie_web(driver):
     html_news = ""
     fonti = [
-        {"nome": "EQUOS (GALOPPO)", "url": "https://equos.it/category/galoppo/feed/"},
-        {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it/feed/"},
-        {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com/feed/"},
-        {"nome": "TDN EUROPE", "url": "https://www.thoroughbreddailynews.com/tdn-europe/feed/"}
+        {"nome": "EQUOS (GALOPPO)", "url": "https://equos.it/category/galoppo/"},
+        {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it/"},
+        {"nome": "RACING POST", "url": "https://www.racingpost.com/news/"},
+        {"nome": "TDN EUROPE", "url": "https://www.thoroughbreddailynews.com/tdn-europe/"},
+        {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com/"}
     ]
 
     for fonte in fonti:
-        print(f"   [📻] Intercettazione RSS: {fonte['nome']}...")
+        print(f"   [📻] Contatto redazione: {fonte['nome']}...")
         try:
-            feed = feedparser.parse(fonte['url'])
+            driver.get(fonte['url'])
+            time.sleep(5) 
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            notizie_estratte = []
+
+            if "EQUOS" in fonte['nome']:
+                articoli = soup.find_all('article')
+                for art in articoli:
+                    titolo_tag = art.find(['h2', 'h3'])
+                    if titolo_tag:
+                        link_tag = titolo_tag.find('a')
+                        if link_tag and link_tag.has_attr('href'):
+                            testo = link_tag.get_text(strip=True)
+                            if len(testo) > 15 and not contiene_cinese(testo):
+                                url_notizia = urljoin(fonte['url'], link_tag['href'])
+                                if not any(testo == n['titolo'] for n in notizie_estratte):
+                                    notizie_estratte.append({'titolo': testo, 'url': url_notizia})
+                    if len(notizie_estratte) == 3: break
+            
+            if not notizie_estratte:
+                tutti_i_link = soup.find_all('a', href=True)
+                for a_tag in tutti_i_link:
+                    testo = a_tag.get_text(strip=True)
+                    
+                    if len(testo) > 25 and not contiene_cinese(testo):
+                        testo_lower = testo.lower()
+                        fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo"]
+                        
+                        if not any(parola in testo_lower for parola in fuffa):
+                            url_notizia = urljoin(fonte['url'], a_tag['href'])
+                            if not any(testo == n['titolo'] for n in notizie_estratte):
+                                notizie_estratte.append({'titolo': testo, 'url': url_notizia})
+                                
+                    if len(notizie_estratte) == 3: break
+
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
-            
-            if feed.entries:
-                # Prendiamo le ultime 3 notizie valide
-                conteggio = 0
-                for entry in feed.entries:
-                    titolo = entry.title
-                    link = entry.link
-                    # Escludiamo eventuali podcast vuoti o pubblicità
-                    if len(titolo) > 10:
-                        html_news += f'<h4><a href="{link}" target="_blank" style="color: #111; text-decoration: none;">{titolo}</a></h4>'
-                        conteggio += 1
-                    if conteggio == 3:
-                        break
+            if notizie_estratte:
+                for news in notizie_estratte:
+                    html_news += f'<h4><a href="{news["url"]}" target="_blank" style="color: #111; text-decoration: none;">{news["titolo"]}</a></h4>'
             else:
-                html_news += '<h4>Redazione in silenzio stampa.</h4>'
-            
+                html_news += '<h4>Nessuna notizia rilevante al momento.</h4>'
             html_news += '</div>'
-        except Exception as e:
-            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Frequenza radio interrotta.</h4></div>'
+            
+        except Exception:
+            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Collegamento fallito.</h4></div>'
 
     return html_news
 
 # ==========================================
-# 4. AVVIO DEL MOTORE E IMPAGINATORE HTML
+# 4. RISULTATI DI IERI (Estrattore Anti Pop-up)
 # ==========================================
-blocco_notizie_dinamico = recupera_notizie_rss()
-blocco_calendario = genera_calendario_g1()
+def recupera_risultati_ieri(driver):
+    html_risultati = ""
+    print("   [📻] Intercettazione Risultati Ippica.biz...")
+    try:
+        driver.get("https://www.ippica.biz/00_menu.asp")
+        time.sleep(3)
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        link_pagina_arrivi = None
+        for a_tag in soup.find_all('a', href=True):
+            testo = a_tag.get_text(strip=True).upper()
+            if 'ARRIVI' in testo or 'RISULTATI' in testo:
+                link_pagina_arrivi = urljoin("https://www.ippica.biz/0/14_tlx/", a_tag['href'].strip())
+                break
+                
+        link_trovati = []
+        
+        if link_pagina_arrivi:
+            driver.get(link_pagina_arrivi)
+            time.sleep(4)
+            soup_arrivi = BeautifulSoup(driver.page_source, 'html.parser')
+            
+            for a_tag in soup_arrivi.find_all('a', href=True):
+                href = a_tag['href'].strip()
+                testo = a_tag.get_text(strip=True)
+                
+                if 'javascript:zoom' in href:
+                    match_url = re.search(r"javascript:zoom\(['\"]([^'\"]+)['\"]\)", href)
+                    if match_url:
+                        url_pulito = match_url.group(1).replace("%27", "")
+                        nome_gara = testo if testo else "Vedi"
+                        
+                        if url_pulito not in [l['url'] for l in link_trovati]:
+                            link_trovati.append({"nome": nome_gara, "url": url_pulito})
+        
+        if link_trovati:
+            html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
+            for l in link_trovati:
+                etichetta = f"🏁 Corsa {l['nome']}" if l['nome'].isdigit() else f"🏁 {l['nome']}"
+                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#e0e0e0; color:#111; padding:8px 12px; border:1px solid #999; border-radius:4px; text-decoration:none; font-weight:bold; font-size:13px;'>{etichetta}</a>"
+            html_risultati += "</div>"
+        else:
+            html_risultati += "<p style='font-size: 13px; font-style: italic;'>(In attesa dei dispacci ufficiali. Nessun risultato rilevato sul server).</p>"
+            
+    except Exception as e:
+        html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
+        
+    return html_risultati
 
+# ==========================================
+# 5. AVVIO DEL MOTORE E IMPAGINATORE HTML
+# ==========================================
 options = uc.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
@@ -163,8 +231,12 @@ options.add_argument('--window-size=1920,1080')
 options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 try:
-    print("\n📡 Avvio del radar per Ippica.biz (Corse & Risultati)...")
+    print("\n📡 Avvio del driver Chrome in incognito...")
     driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
+    
+    blocco_notizie = recupera_notizie_web(driver)
+    blocco_calendario = genera_calendario_g1()
+    blocco_risultati = recupera_risultati_ieri(driver)
     
     sito_html = f"""
     <!DOCTYPE html>
@@ -229,12 +301,12 @@ try:
         </div>
 
         <div class="sezione-news">
-            <div class="titolo-sezione">Rassegna Stampa Internazionale (Feed Diretto)</div>
-            {blocco_notizie_dinamico}
+            <div class="titolo-sezione">Rassegna Stampa Internazionale</div>
+            {blocco_notizie}
         </div>
         
         <div class="titolo-sezione">Archivio Risultati di Ieri</div>
-        <p style="font-size: 13px; font-style: italic;">(Il radar dei risultati è attivo sulle frequenze di Ippica.biz. Se omologati, compariranno nei dispacci ufficiali sottostanti).</p>
+        {blocco_risultati}
         
         <div class="titolo-sezione" style="margin-top: 40px;">Partenti di Oggi</div>
     """
@@ -246,7 +318,6 @@ try:
     
     link_validi = []
     
-    # LA TUA LOGICA CORSE BLINDATA
     for menu in menu_da_visitare:
         driver.get(menu['url'])
         time.sleep(5) 
@@ -257,7 +328,7 @@ try:
             testo = a_tag.get_text(strip=True).upper()
             
             if '.asp?' in href.lower() and 'TG=T' not in href.upper():
-                if 'CORSA=0' in href.upper() or testo == 'C':
+                if 'CORSA=0' in href.upper() or 'IPPO=' in href.upper() or testo == 'C':
                     
                     match_ippo = re.search(r'IPPO=([^&]+)', href.upper())
                     nome_tendina = match_ippo.group(1).replace("%20", " ").replace("+", " ").upper() if match_ippo else "GARA"
