@@ -151,16 +151,19 @@ def recupera_notizie_web(driver):
             html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list"><li><i>Collegamento alla redazione fallito.</i></li></ul></div>'
 
     return html_news
-
 # ==========================================
-# 4. RISULTATI DI IERI (Estrattore Aspirapolvere Regex)
+# 4. RISULTATI DI IERI (Ritorno alla versione funzionante)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
-    print("   [📻] Intercettazione Risultati Ippica.biz (Bypass Multi-Frame Regex)...")
+    print("   [📻] Intercettazione Risultati Ippica.biz...")
     try:
+        # 1. Pulizia totale: cancelliamo i cookie dei siti di news per non mandare in palla Ippica.biz
+        driver.delete_all_cookies()
+        
+        # 2. Entrata e attesa prolungata
         driver.get("https://www.ippica.biz/")
-        time.sleep(7) 
+        time.sleep(8) 
         
         js_magico = """
         function estraiTutto(win) {
@@ -191,18 +194,19 @@ def recupera_risultati_ieri(driver):
                         href = a_tag['href'].strip()
                         num_corsa = a_tag.get_text(strip=True)
                         
-                        href_lower = href.lower()
-                        # Controllo tutto in minuscolo
-                        if 'javascript:zoom' in href_lower and '14_on_air_risris.asp' in href_lower:
+                        # LOGICA ESATTA DEL TEST FUNZIONANTE: Split brutale, niente Regex
+                        if 'javascript:zoom' in href and '14_on_air_risRIS.asp' in href:
                             try:
-                                # Usiamo regex per estrarre l'url
-                                match = re.search(r"zoom\(['\"]?([^'\")]+)['\"]?\)", href, re.IGNORECASE)
-                                if match:
-                                    url_pulito = match.group(1).strip()
-                                    if url_pulito.startswith("http"):
-                                        nome_completo = f"{ippodromo} - Corsa {num_corsa}"
-                                        if not any(l['url'] == url_pulito for l in link_trovati):
-                                            link_trovati.append({"nome": nome_completo, "url": url_pulito})
+                                url_raw = href.split("zoom(")[1].split(")")[0]
+                                url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
+                                
+                                # Se il link è un percorso relativo, aggiungiamo noi il dominio
+                                if not url_pulito.startswith("http"):
+                                    url_pulito = "http://www.ippica.biz/" + url_pulito.lstrip("/")
+                                    
+                                nome_completo = f"{ippodromo} - Corsa {num_corsa}"
+                                if not any(l['url'] == url_pulito for l in link_trovati):
+                                    link_trovati.append({"nome": nome_completo, "url": url_pulito})
                             except:
                                 pass
         
@@ -218,7 +222,6 @@ def recupera_risultati_ieri(driver):
         html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
         
     return html_risultati
-
 # ==========================================
 # 5. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
