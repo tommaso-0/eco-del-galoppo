@@ -172,54 +172,73 @@ def recupera_notizie_web(driver):
     return html_news
 
 # ==========================================
-# 4. RISULTATI DI IERI (Taglio Brutale Anti-Javascript)
+# 4. RISULTATI DI IERI (Estrattore Aspirapolvere Definitivo)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
-    print("   [📻] Intercettazione Risultati Ippica.biz...")
+    print("   [📻] Intercettazione Risultati Ippica.biz (Bypass Multi-Frame)...")
     try:
-        driver.get("https://www.ippica.biz/00_menu.asp")
-        time.sleep(3)
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        # 1. Andiamo sulla Home Page per caricare l'intera impalcatura e la sessione
+        driver.get("https://www.ippica.biz/")
+        time.sleep(7) 
         
-        link_pagina_arrivi = None
-        for a_tag in soup.find_all('a', href=True):
-            testo = a_tag.get_text(strip=True).upper()
-            if 'ARRIVI' in testo or 'RISULTATI' in testo:
-                link_pagina_arrivi = urljoin("https://www.ippica.biz/0/14_tlx/", a_tag['href'].strip())
-                break
-                
+        # 2. Iniezione dell'Aspirapolvere Javascript
+        js_magico = """
+        function estraiTutto(win) {
+            let html_totale = "";
+            try {
+                html_totale += win.document.documentElement.outerHTML;
+            } catch(e) {}
+            
+            for (let i = 0; i < win.frames.length; i++) {
+                try {
+                    html_totale += estraiTutto(win.frames[i]);
+                } catch(e) {}
+            }
+            return html_totale;
+        }
+        return estraiTutto(window);
+        """
+        
+        html_gigante = driver.execute_script(js_magico)
+        soup = BeautifulSoup(html_gigante, 'html.parser')
+        
         link_trovati = []
         
-        if link_pagina_arrivi:
-            driver.get(link_pagina_arrivi)
-            time.sleep(4)
-            soup_arrivi = BeautifulSoup(driver.page_source, 'html.parser')
-            
-            for a_tag in soup_arrivi.find_all('a', href=True):
-                href = a_tag['href'].strip()
-                testo = a_tag.get_text(strip=True)
+        # 3. Analisi della super-pagina aspirata
+        for riga in soup.find_all('tr'):
+            celle = riga.find_all('td')
+            if len(celle) >= 3:
+                ippodromo = celle[0].get_text(strip=True)
+                tg = celle[1].get_text(strip=True).upper()
                 
-                if 'javascript:zoom' in href:
-                    try:
-                        # Estrazione brutale senza regex per schivare le codifiche HTML (%27)
-                        url_raw = href.split("zoom(")[1].split(")")[0]
-                        url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
-                        nome_gara = testo if testo else "Vedi"
+                # Filtriamo solo il Galoppo ("G")
+                if tg == 'G':
+                    for a_tag in celle[2].find_all('a', href=True):
+                        href = a_tag['href'].strip()
+                        num_corsa = a_tag.get_text(strip=True)
                         
-                        if url_pulito.startswith("http") and not any(l['url'] == url_pulito for l in link_trovati):
-                            link_trovati.append({"nome": nome_gara, "url": url_pulito})
-                    except:
-                        pass
+                        # IL FILTRO CECCHINO: Solo link Javascript E che siano Risultati (risRIS)
+                        if 'javascript:zoom' in href and '14_on_air_risRIS.asp' in href:
+                            try:
+                                url_raw = href.split("zoom(")[1].split(")")[0]
+                                url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
+                                
+                                if url_pulito.startswith("http"):
+                                    nome_completo = f"{ippodromo} - Corsa {num_corsa}"
+                                    if not any(l['url'] == url_pulito for l in link_trovati):
+                                        link_trovati.append({"nome": nome_completo, "url": url_pulito})
+                            except:
+                                pass
         
+        # 4. Generazione HTML
         if link_trovati:
             html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
             for l in link_trovati:
-                etichetta = f"🏁 Corsa {l['nome']}" if l['nome'].isdigit() else f"🏁 {l['nome']}"
-                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#e0e0e0; color:#111; padding:8px 12px; border:1px solid #999; border-radius:4px; text-decoration:none; font-weight:bold; font-size:13px;'>{etichetta}</a>"
+                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#e0e0e0; color:#111; padding:8px 12px; border:1px solid #999; border-radius:4px; text-decoration:none; font-weight:bold; font-size:13px;'>🏁 {l['nome']}</a>"
             html_risultati += "</div>"
         else:
-            html_risultati += "<p style='font-size: 13px; font-style: italic;'>(In attesa dei dispacci ufficiali. Nessun risultato rilevato sul server).</p>"
+            html_risultati += "<p style='font-size: 13px; font-style: italic;'>(Nessun risultato al galoppo di ieri disponibile al momento).</p>"
             
     except Exception as e:
         html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
