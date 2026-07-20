@@ -31,7 +31,7 @@ except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
 # ==========================================
-# 2. CALENDARIO G1 DINAMICO (DATABASE TITANICO)
+# 2. CALENDARIO G1 DINAMICO
 # ==========================================
 def genera_calendario_g1():
     g1_database = [
@@ -54,7 +54,6 @@ def genera_calendario_g1():
         {"nome": "Tenno Sho Spring (JPN)", "data": "02/05/2027"},
         {"nome": "Tokyo Yushun - Derby (JPN)", "data": "30/05/2027"},
         {"nome": "Takarazuka Kinen (JPN)", "data": "27/06/2027"},
-        
         {"nome": "Sussex Stakes (UK)", "data": "29/07/2026"},
         {"nome": "Juddmonte International (UK)", "data": "19/08/2026"},
         {"nome": "Prix Jacques le Marois (FRA)", "data": "16/08/2026"},
@@ -68,7 +67,6 @@ def genera_calendario_g1():
         {"nome": "Epsom Derby (UK)", "data": "05/06/2027"},
         {"nome": "Prix du Jockey Club (FRA)", "data": "06/06/2027"},
         {"nome": "Royal Ascot - Gold Cup (UK)", "data": "17/06/2027"},
-        
         {"nome": "Cox Plate (AUS)", "data": "24/10/2026"},
         {"nome": "Melbourne Cup (AUS)", "data": "03/11/2026"},
         {"nome": "Breeders' Cup Turf (USA)", "data": "07/11/2026"},
@@ -91,7 +89,7 @@ def genera_calendario_g1():
         etichetta = f"Tra {c[2]} giorni" if c[2] > 0 else "OGGI!"
         colore_badge = "#8b0000" if c[2] < 7 else "#333" 
         html_cal += f"""
-        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
             <div style='font-size: 11px; font-weight: bold; color: {colore_badge}; text-transform: uppercase;'>{etichetta}</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>{c[0]}</div>
             <div style='font-size: 12px; color: #555;'>📅 {c[1]}</div>
@@ -101,11 +99,9 @@ def genera_calendario_g1():
     return html_cal
 
 # ==========================================
-# 3. RECUPERO NOTIZIE (Forza Bruta Anti-Cinese)
+# 3. RECUPERO NOTIZIE (Restyling Premium)
 # ==========================================
 def testo_pulito(testo):
-    # Blocca qualsiasi carattere con codice Unicode superiore a 12000 
-    # Questo intercetta TUTTI gli ideogrammi e la punteggiatura asiatica speciale come le parentesi 【 】
     if any(ord(c) > 12000 for c in testo):
         return False
     return True
@@ -113,7 +109,6 @@ def testo_pulito(testo):
 def recupera_notizie_web(driver):
     html_news = ""
     fonti = [
-        {"nome": "EQUOS (GALOPPO)", "url": "https://equos.it/category/galoppo/"},
         {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it/"},
         {"nome": "RACING POST", "url": "https://www.racingpost.com/news/"},
         {"nome": "TDN EUROPE", "url": "https://www.thoroughbreddailynews.com/tdn-europe/"},
@@ -128,72 +123,51 @@ def recupera_notizie_web(driver):
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             notizie_estratte = []
 
-            if "EQUOS" in fonte['nome']:
-                articoli = soup.find_all('article')
-                for art in articoli:
-                    titolo_tag = art.find(['h2', 'h3'])
-                    if titolo_tag:
-                        link_tag = titolo_tag.find('a')
-                        if link_tag and link_tag.has_attr('href'):
-                            testo = link_tag.get_text(strip=True)
-                            if len(testo) > 15 and testo_pulito(testo):
-                                url_notizia = urljoin(fonte['url'], link_tag['href'])
-                                if not any(testo == n['titolo'] for n in notizie_estratte):
-                                    notizie_estratte.append({'titolo': testo, 'url': url_notizia})
-                    if len(notizie_estratte) == 3: break
-            
-            if not notizie_estratte:
-                tutti_i_link = soup.find_all('a', href=True)
-                for a_tag in tutti_i_link:
-                    testo = a_tag.get_text(strip=True)
+            tutti_i_link = soup.find_all('a', href=True)
+            for a_tag in tutti_i_link:
+                testo = a_tag.get_text(strip=True)
+                
+                if len(testo) > 25 and testo_pulito(testo):
+                    testo_lower = testo.lower()
+                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo"]
                     
-                    if len(testo) > 25 and testo_pulito(testo):
-                        testo_lower = testo.lower()
-                        fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo"]
-                        
-                        if not any(parola in testo_lower for parola in fuffa):
-                            url_notizia = urljoin(fonte['url'], a_tag['href'])
-                            if not any(testo == n['titolo'] for n in notizie_estratte):
-                                notizie_estratte.append({'titolo': testo, 'url': url_notizia})
-                                
-                    if len(notizie_estratte) == 3: break
+                    if not any(parola in testo_lower for parola in fuffa):
+                        url_notizia = urljoin(fonte['url'], a_tag['href'])
+                        if not any(testo == n['titolo'] for n in notizie_estratte):
+                            notizie_estratte.append({'titolo': testo, 'url': url_notizia})
+                            
+                if len(notizie_estratte) == 3: break
 
-            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
+            # Nuova struttura grafica: Card per ogni fonte
+            html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list">'
             if notizie_estratte:
                 for news in notizie_estratte:
-                    html_news += f'<h4><a href="{news["url"]}" target="_blank" style="color: #111; text-decoration: none;">{news["titolo"]}</a></h4>'
+                    html_news += f'<li><a href="{news["url"]}" target="_blank">{news["titolo"]}</a></li>'
             else:
-                html_news += '<h4>Nessuna notizia rilevante al momento.</h4>'
-            html_news += '</div>'
+                html_news += '<li><i>Nessuna notizia rilevante al momento.</i></li>'
+            html_news += '</ul></div>'
             
         except Exception:
-            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Collegamento fallito.</h4></div>'
+            html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list"><li><i>Collegamento alla redazione fallito.</i></li></ul></div>'
 
     return html_news
 
 # ==========================================
-# 4. RISULTATI DI IERI (Estrattore Aspirapolvere Definitivo)
+# 4. RISULTATI DI IERI (Estrattore Aspirapolvere Regex)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
-    print("   [📻] Intercettazione Risultati Ippica.biz (Bypass Multi-Frame)...")
+    print("   [📻] Intercettazione Risultati Ippica.biz (Bypass Multi-Frame Regex)...")
     try:
-        # 1. Andiamo sulla Home Page per caricare l'intera impalcatura e la sessione
         driver.get("https://www.ippica.biz/")
         time.sleep(7) 
         
-        # 2. Iniezione dell'Aspirapolvere Javascript
         js_magico = """
         function estraiTutto(win) {
             let html_totale = "";
-            try {
-                html_totale += win.document.documentElement.outerHTML;
-            } catch(e) {}
-            
+            try { html_totale += win.document.documentElement.outerHTML; } catch(e) {}
             for (let i = 0; i < win.frames.length; i++) {
-                try {
-                    html_totale += estraiTutto(win.frames[i]);
-                } catch(e) {}
+                try { html_totale += estraiTutto(win.frames[i]); } catch(e) {}
             }
             return html_totale;
         }
@@ -205,7 +179,6 @@ def recupera_risultati_ieri(driver):
         
         link_trovati = []
         
-        # 3. Analisi della super-pagina aspirata
         for riga in soup.find_all('tr'):
             celle = riga.find_all('td')
             if len(celle) >= 3:
@@ -218,24 +191,25 @@ def recupera_risultati_ieri(driver):
                         href = a_tag['href'].strip()
                         num_corsa = a_tag.get_text(strip=True)
                         
-                        # IL FILTRO CECCHINO: Solo link Javascript E che siano Risultati (risRIS)
-                        if 'javascript:zoom' in href and '14_on_air_risRIS.asp' in href:
+                        href_lower = href.lower()
+                        # Controllo tutto in minuscolo
+                        if 'javascript:zoom' in href_lower and '14_on_air_risris.asp' in href_lower:
                             try:
-                                url_raw = href.split("zoom(")[1].split(")")[0]
-                                url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
-                                
-                                if url_pulito.startswith("http"):
-                                    nome_completo = f"{ippodromo} - Corsa {num_corsa}"
-                                    if not any(l['url'] == url_pulito for l in link_trovati):
-                                        link_trovati.append({"nome": nome_completo, "url": url_pulito})
+                                # Usiamo regex per estrarre l'url
+                                match = re.search(r"zoom\(['\"]?([^'\")]+)['\"]?\)", href, re.IGNORECASE)
+                                if match:
+                                    url_pulito = match.group(1).strip()
+                                    if url_pulito.startswith("http"):
+                                        nome_completo = f"{ippodromo} - Corsa {num_corsa}"
+                                        if not any(l['url'] == url_pulito for l in link_trovati):
+                                            link_trovati.append({"nome": nome_completo, "url": url_pulito})
                             except:
                                 pass
         
-        # 4. Generazione HTML
         if link_trovati:
             html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
             for l in link_trovati:
-                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#e0e0e0; color:#111; padding:8px 12px; border:1px solid #999; border-radius:4px; text-decoration:none; font-weight:bold; font-size:13px;'>🏁 {l['nome']}</a>"
+                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#fff; color:#111; padding:8px 12px; border:1px solid #999; border-radius:4px; text-decoration:none; font-weight:bold; font-size:13px; box-shadow: 1px 1px 3px rgba(0,0,0,0.1);'>🏁 {l['nome']}</a>"
             html_risultati += "</div>"
         else:
             html_risultati += "<p style='font-size: 13px; font-style: italic;'>(Nessun risultato al galoppo di ieri disponibile al momento).</p>"
@@ -282,11 +256,18 @@ try:
             
             .sezione-news {{ margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }}
             .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }}
-            .news-item {{ margin-bottom: 15px; }}
-            .news-item h4 {{ margin: 0 0 6px 0; font-size: 15px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }}
-            .news-item h4 a:hover {{ text-decoration: underline !important; }}
-            .news-item .fonte {{ font-size: 11px; color: #333; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed #999; display: inline-block; margin-bottom: 4px; }}
             
+            /* NUOVO STILE NEWS */
+            .news-grid {{ display: flex; flex-direction: column; gap: 15px; }}
+            .news-card {{ background-color: #fff; border: 1px solid #ddd; border-left: 5px solid #8b0000; padding: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); border-radius: 3px; }}
+            .fonte-badge {{ display: inline-block; background-color: #222; color: #fff; padding: 4px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border-radius: 3px; letter-spacing: 0.5px; }}
+            .news-list {{ list-style-type: none; padding: 0; margin: 0; }}
+            .news-list li {{ margin-bottom: 10px; font-family: 'Georgia', serif; font-size: 15px; line-height: 1.4; padding-left: 18px; position: relative; }}
+            .news-list li::before {{ content: "»"; position: absolute; left: 0; top: 0; color: #8b0000; font-weight: bold; font-size: 18px; line-height: 1.2; }}
+            .news-list li a {{ color: #111; text-decoration: none; transition: all 0.2s; display: inline-block; }}
+            .news-list li a:hover {{ color: #8b0000; text-decoration: underline; text-underline-offset: 3px; }}
+            
+            /* TENDINE IPPODROMI */
             details.ippodromo {{ background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }}
             summary.main-tendina {{ background-color: #222; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }}
             summary.main-tendina::-webkit-details-marker {{ display: none; }}
@@ -328,7 +309,9 @@ try:
 
         <div class="sezione-news">
             <div class="titolo-sezione">Rassegna Stampa Internazionale</div>
-            {blocco_notizie}
+            <div class="news-grid">
+                {blocco_notizie}
+            </div>
         </div>
         
         <div class="titolo-sezione">Archivio Risultati di Ieri</div>

@@ -16,11 +16,18 @@
             
             .sezione-news { margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }
             .titolo-sezione { font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }
-            .news-item { margin-bottom: 15px; }
-            .news-item h4 { margin: 0 0 6px 0; font-size: 15px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }
-            .news-item h4 a:hover { text-decoration: underline !important; }
-            .news-item .fonte { font-size: 11px; color: #333; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed #999; display: inline-block; margin-bottom: 4px; }
             
+            /* NUOVO STILE NEWS */
+            .news-grid { display: flex; flex-direction: column; gap: 15px; }
+            .news-card { background-color: #fff; border: 1px solid #ddd; border-left: 5px solid #8b0000; padding: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); border-radius: 3px; }
+            .fonte-badge { display: inline-block; background-color: #222; color: #fff; padding: 4px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border-radius: 3px; letter-spacing: 0.5px; }
+            .news-list { list-style-type: none; padding: 0; margin: 0; }
+            .news-list li { margin-bottom: 10px; font-family: 'Georgia', serif; font-size: 15px; line-height: 1.4; padding-left: 18px; position: relative; }
+            .news-list li::before { content: "»"; position: absolute; left: 0; top: 0; color: #8b0000; font-weight: bold; font-size: 18px; line-height: 1.2; }
+            .news-list li a { color: #111; text-decoration: none; transition: all 0.2s; display: inline-block; }
+            .news-list li a:hover { color: #8b0000; text-decoration: underline; text-underline-offset: 3px; }
+            
+            /* TENDINE IPPODROMI */
             details.ippodromo { background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }
             summary.main-tendina { background-color: #222; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }
             summary.main-tendina::-webkit-details-marker { display: none; }
@@ -52,37 +59,37 @@
         
         <div class="box-storico">
             <div class="box-titolo">*** Il Cavallo del Giorno ***</div>
-            <b>KITASAN BLACK</b><br><span style="font-size: 13px;">Idolo delle folle in Giappone e di proprietà del famoso cantante Saburo Kitajima. Cavallo dal cuore infinito e dalla tattica da "front-runner", non si faceva mai superare in retta d'arrivo. Padre del fenomeno Equinox.</span>
+            <b>TROY</b><br><span style="font-size: 13px;">Celebre per la sua mostruosa accelerazione nel Derby di Epsom del 1979. Al termine della curva di Tattenham Corner era quasi ultimo; in dirittura ha travolto il campo vincendo con uno stacco spaventoso di 7 lunghezze.</span>
         </div>
         
         <div class="sezione-news" style="background: #e9e9e9; padding: 15px; border: 1px solid #000;">
             <div class="titolo-sezione" style="border-bottom: 1px dashed #000; padding-bottom: 10px; margin-top: 0;">Road to G1</div>
             <div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;'>
-        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
             <div style='font-size: 11px; font-weight: bold; color: #333; text-transform: uppercase;'>Tra 8 giorni</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>Sussex Stakes (UK)</div>
             <div style='font-size: 12px; color: #555;'>📅 29/07/2026</div>
         </div>
         
-        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
             <div style='font-size: 11px; font-weight: bold; color: #333; text-transform: uppercase;'>Tra 26 giorni</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>Prix Jacques le Marois (FRA)</div>
             <div style='font-size: 12px; color: #555;'>📅 16/08/2026</div>
         </div>
         
-        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
             <div style='font-size: 11px; font-weight: bold; color: #333; text-transform: uppercase;'>Tra 29 giorni</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>Juddmonte International (UK)</div>
             <div style='font-size: 12px; color: #555;'>📅 19/08/2026</div>
         </div>
         
-        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
             <div style='font-size: 11px; font-weight: bold; color: #333; text-transform: uppercase;'>Tra 53 giorni</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>Irish Champion Stakes (IRE)</div>
             <div style='font-size: 12px; color: #555;'>📅 12/09/2026</div>
         </div>
         
-        <div style='background: #fff; border: 1px solid #999; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px;'>
+        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
             <div style='font-size: 11px; font-weight: bold; color: #333; text-transform: uppercase;'>Tra 75 giorni</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>Sprinters Stakes (JPN)</div>
             <div style='font-size: 12px; color: #555;'>📅 04/10/2026</div>
@@ -92,7 +99,9 @@
 
         <div class="sezione-news">
             <div class="titolo-sezione">Rassegna Stampa Internazionale</div>
-            <div class="news-item"><div class="fonte">EQUOS (GALOPPO)</div><h4>Nessuna notizia rilevante al momento.</h4></div><div class="news-item"><div class="fonte">ITALIAN POST RACING</div><h4><a href="https://italianpostracing.it/sguardo-sul-curragh-johanna-walsh-domina-le-irish-oaks/" target="_blank" style="color: #111; text-decoration: none;">Sguardo sul Curragh: Johanna Walsh domina le Irish Oaks!</a></h4><h4><a href="https://italianpostracing.it/constitution-hill-e-lincertezza-del-futuro-europa-o-australia/" target="_blank" style="color: #111; text-decoration: none;">Constitution Hill e l’incertezza del futuro. Europa o Australia?</a></h4><h4><a href="https://italianpostracing.it/rebels-romance-ritirato-dalle-competizioni/" target="_blank" style="color: #111; text-decoration: none;">Rebel’s Romance ritirato dalle competizioni</a></h4></div><div class="news-item"><div class="fonte">RACING POST</div><h4><a href="https://www.racingpost.com/racecards/93/windsor/2026-07-20/923225/" target="_blank" style="color: #111; text-decoration: none;">next race2 MINS19:50Windsor</a></h4><h4><a href="https://www.racingpost.com/free-bets/" target="_blank" style="color: #111; text-decoration: none;">FREE BETSCheck out all our Offers on our Free Bets pages</a></h4><h4><a href="https://www.racingpost.com/news/big-race-latest/hopefully-it-will-be-a-case-of-same-time-same-place-goliath-team-ready-for-king-george-repeat-after-hard-luck-in-hardwicke-aY3r07L9DRtu/" target="_blank" style="color: #111; text-decoration: none;">'Hopefully it will be a case of same time, same place' - Goliath team ready for King George repeat after hard luck in Hardwicke</a></h4></div><div class="news-item"><div class="fonte">TDN EUROPE</div><h4><a href="https://www.thoroughbreddailynews.com/pdf/tdn/tdn260720e.pdf" target="_blank" style="color: #111; text-decoration: none;">TDN Europe | International</a></h4><h4><a href="https://www.thoroughbreddailynews.com/triple-crown-contenders-2020/" target="_blank" style="color: #111; text-decoration: none;">TDN Triple Crown Contenders</a></h4><h4><a href="https://www.thoroughbreddailynews.com/tag/g1-qatar-prix-de-larc-de-triomphe-predictions/" target="_blank" style="color: #111; text-decoration: none;">G1 Qatar Prix de l'Arc de Triomphe predictions</a></h4></div><div class="news-item"><div class="fonte">ASIAN RACING REPORT</div><h4><a href="https://asianracingreport.com/the-2026-bmw-hong-kong-derby/" target="_blank" style="color: #111; text-decoration: none;">TechTeam RatingsThe 2026 BMW Hong Kong DerbyLittle Paradise is set to go one better in Sunday's BMW Hong Kong Derby after being severely inconvenienced in last start's prelude, with the Tech Team rating him a clear top pick at value odds.</a></h4><h4><a href="https://asianracingreport.com/little-paradise-and-romantic-warrior-set-to-dominate-on-sunday/" target="_blank" style="color: #111; text-decoration: none;">TechTeam RatingsLittle Paradise and Romantic Warrior set to dominate on SundayWith a rating of 120+ in the Classic Cup and Romantic Warrior on a near-unbeatable 127 in the Gold Cup, the Tech Team previews Sunday's twin features and every race on the support card.</a></h4><h4><a href="https://asianracingreport.com/little-paradise-the-next-golden-sixty/" target="_blank" style="color: #111; text-decoration: none;">TechTeam RatingsLittle Paradise the next Golden SixtyTechnical analysis suggests Little Paradise, who dominated The Hong Kong Classic Mile with a rating of 77.5, is on track to match the legendary Golden Sixty's career trajectory with a projected peak rating of 84—the same level achieved by Hong Kong's greatest champions.</a></h4></div>
+            <div class="news-grid">
+                <div class="news-card"><div class="fonte-badge">🗞️ ITALIAN POST RACING</div><ul class="news-list"><li><a href="https://italianpostracing.it/sguardo-sul-curragh-johanna-walsh-domina-le-irish-oaks/" target="_blank">Sguardo sul Curragh: Johanna Walsh domina le Irish Oaks!</a></li><li><a href="https://italianpostracing.it/constitution-hill-e-lincertezza-del-futuro-europa-o-australia/" target="_blank">Constitution Hill e l’incertezza del futuro. Europa o Australia?</a></li><li><a href="https://italianpostracing.it/rebels-romance-ritirato-dalle-competizioni/" target="_blank">Rebel’s Romance ritirato dalle competizioni</a></li></ul></div><div class="news-card"><div class="fonte-badge">🗞️ RACING POST</div><ul class="news-list"><li><a href="https://www.racingpost.com/racecards/6/beverley/2026-07-20/923224/" target="_blank">next race5 MINS20:00 Beverley</a></li><li><a href="https://www.racingpost.com/free-bets/" target="_blank">FREE BETSCheck out all our Offers on our Free Bets pages</a></li><li><a href="https://www.racingpost.com/news/big-race-latest/hopefully-it-will-be-a-case-of-same-time-same-place-goliath-team-ready-for-king-george-repeat-after-hard-luck-in-hardwicke-aY3r07L9DRtu/" target="_blank">'Hopefully it will be a case of same time, same place' - Goliath team ready for King George repeat after hard luck in Hardwicke</a></li></ul></div><div class="news-card"><div class="fonte-badge">🗞️ TDN EUROPE</div><ul class="news-list"><li><a href="https://www.thoroughbreddailynews.com/pdf/tdn/tdn260720e.pdf" target="_blank">TDN Europe | International</a></li><li><a href="https://www.thoroughbreddailynews.com/triple-crown-contenders-2020/" target="_blank">TDN Triple Crown Contenders</a></li><li><a href="https://www.thoroughbreddailynews.com/tag/g1-qatar-prix-de-larc-de-triomphe-predictions/" target="_blank">G1 Qatar Prix de l'Arc de Triomphe predictions</a></li></ul></div><div class="news-card"><div class="fonte-badge">🗞️ ASIAN RACING REPORT</div><ul class="news-list"><li><a href="https://asianracingreport.com/the-2026-bmw-hong-kong-derby/" target="_blank">TechTeam RatingsThe 2026 BMW Hong Kong DerbyLittle Paradise is set to go one better in Sunday's BMW Hong Kong Derby after being severely inconvenienced in last start's prelude, with the Tech Team rating him a clear top pick at value odds.</a></li><li><a href="https://asianracingreport.com/little-paradise-and-romantic-warrior-set-to-dominate-on-sunday/" target="_blank">TechTeam RatingsLittle Paradise and Romantic Warrior set to dominate on SundayWith a rating of 120+ in the Classic Cup and Romantic Warrior on a near-unbeatable 127 in the Gold Cup, the Tech Team previews Sunday's twin features and every race on the support card.</a></li><li><a href="https://asianracingreport.com/little-paradise-the-next-golden-sixty/" target="_blank">TechTeam RatingsLittle Paradise the next Golden SixtyTechnical analysis suggests Little Paradise, who dominated The Hong Kong Classic Mile with a rating of 77.5, is on track to match the legendary Golden Sixty's career trajectory with a projected peak rating of 84—the same level achieved by Hong Kong's greatest champions.</a></li></ul></div>
+            </div>
         </div>
         
         <div class="titolo-sezione">Archivio Risultati di Ieri</div>
