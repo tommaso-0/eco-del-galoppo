@@ -1,7 +1,4 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import time
@@ -16,14 +13,12 @@ DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
 # ==========================================
-# 1. IL CAVALLO DEL GIORNO (Dal tuo file TXT privato)
+# 1. IL CAVALLO DEL GIORNO (Dal tuo file memoir.txt)
 # ==========================================
-campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Impossibile caricare il memoir."}
+campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
 
 try:
-    # Cerca il file ignorando le maiuscole per evitare errori su server Linux
     file_trovato = next((f for f in os.listdir('.') if f.lower() == 'memoir.txt'), None)
-    
     if file_trovato:
         with open(file_trovato, "r", encoding="utf-8") as f:
             linee = [line.strip() for line in f if "|" in line]
@@ -31,13 +26,11 @@ try:
             scelta = random.choice(linee)
             nome_c, storia_c = scelta.split("|", 1)
             campione_oggi = {"nome": nome_c.strip(), "storia": storia_c.strip()}
-    else:
-        campione_oggi["storia"] = "File memoir.txt non trovato nella cartella."
 except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
 # ==========================================
-# 2. RECUPERO NOTIZIE (Filtro anti-spazzatura potenziato)
+# 2. RECUPERO NOTIZIE (Con link cliccabili e filtro anti-spazzatura)
 # ==========================================
 def recupera_notizie(driver):
     html_news = ""
@@ -49,8 +42,6 @@ def recupera_notizie(driver):
         {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com/"}
     ]
 
-    print("\n-> Avvio Rassegna Stampa Internazionale...")
-    
     for fonte in fonti:
         print(f"   [📻] Contatto redazione: {fonte['nome']}...")
         try:
@@ -58,56 +49,56 @@ def recupera_notizie(driver):
             time.sleep(4) 
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             
-            # Peschiamo solo i veri link (<a>) dentro i titoli per evitare il testo dei menu
             titoli = soup.find_all(['h1', 'h2', 'h3'])
             notizie_estratte = []
             
             for t in titoli:
-                link = t.find('a')
-                testo = t.get_text(strip=True)
-                
-                # FILTRO DURO: Più di 35 caratteri (elimina le voci brevi), scarta le parole chiave inutili
-                if len(testo) > 35 and testo not in notizie_estratte:
-                    if not any(fuffa in testo for fuffa in ["Menu", "Search", "Cookie", "Privacy", "Accedi", "Abbonati", "Redazione"]):
-                        notizie_estratte.append(testo)
+                link_tag = t.find('a') 
+                if link_tag and link_tag.has_attr('href'):
+                    testo = link_tag.get_text(strip=True)
+                    if len(testo) > 30 and not any(fuffa in testo for fuffa in ["Menu", "Search", "Cookie", "Privacy"]):
+                        url_notizia = urljoin(fonte['url'], link_tag['href'])
                         
-                # Vogliamo almeno 3 notizie buone
+                        if not any(testo == n['titolo'] for n in notizie_estratte):
+                            notizie_estratte.append({'titolo': testo, 'url': url_notizia})
+                            
                 if len(notizie_estratte) == 3: 
                     break
 
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
             if notizie_estratte:
                 for news in notizie_estratte:
-                    html_news += f'<h4>{news}</h4>'
-                print(f"        ✔️ Acquisite {len(notizie_estratte)} breaking news.")
+                    html_news += f'<h4><a href="{news["url"]}" target="_blank" style="color: #111; text-decoration: none;">{news["titolo"]}</a></h4>'
             else:
                 html_news += '<h4>Nessuna notizia rilevante al momento.</h4>'
-                print("        ⚠️ Nessun titolo rilevato.")
             html_news += '</div>'
             
-        except Exception as e:
-            print(f"        ❌ Errore di connessione.")
-            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Collegamento alla redazione fallito.</h4></div>'
+        except Exception:
+            html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div><h4>Collegamento fallito.</h4></div>'
 
     return html_news
 
 # ==========================================
-# 3. AVVIO DEL MOTORE CHROME E IMPAGINATORE HTML
+# 3. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
-options = Options()
+options = uc.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
-# Questa stringa fa credere ai siti di essere un PC vero per non farci bloccare le notizie
+options.add_argument('--disable-gpu') # Parametro salva-vita per GitHub Actions
+options.add_argument('--window-size=1920,1080') # Forza la risoluzione per non confondere i siti
 options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 try:
     print("\n📡 Avvio del sistema multi-radar antiblocco...")
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver = uc.Chrome(
+        options=options, 
+        use_subprocess=True,
+        version_main=150
+    )
     
     blocco_notizie_dinamico = recupera_notizie(driver)
 
-    # IL TUO STILE ORIGINALE[span_6](start_span)[span_6](end_span)
     sito_html = f"""
     <!DOCTYPE html>
     <html lang="it">
@@ -128,6 +119,7 @@ try:
             .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }}
             .news-item {{ margin-bottom: 15px; }}
             .news-item h4 {{ margin: 0 0 4px 0; font-size: 15px; line-height: 1.4; font-family: 'Georgia', serif; font-weight: normal; }}
+            .news-item h4 a:hover {{ text-decoration: underline !important; }}
             .news-item .fonte {{ font-size: 11px; color: #333; text-transform: uppercase; font-weight: bold; border-bottom: 1px dashed #999; display: inline-block; margin-bottom: 4px; }}
             
             details.ippodromo {{ background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }}
@@ -179,10 +171,9 @@ try:
     
     link_validi = []
     
-    # LA TUA LOGICA CORSE ESATTA[span_7](start_span)[span_7](end_span)
     for menu in menu_da_visitare:
         driver.get(menu['url'])
-        time.sleep(6) # Aumentato leggermente il tempo di attesa per sicurezza sui server GitHub
+        time.sleep(5) 
         soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
         
         for a_tag in soup_menu.find_all('a', href=True):
@@ -198,8 +189,8 @@ try:
                         nome_tendina += " <span class='etichetta-estero'>INT</span>"
                     
                     url_assoluto = None
-                    
                     match_http = re.search(r'(http[s]?://[^\s\)\'"]+)', href)
+                    
                     if match_http:
                         url_assoluto = match_http.group(1).replace("%27", "")
                     else:
@@ -213,10 +204,7 @@ try:
     
     if not link_validi:
         sito_html += "<p><em>Nessuna corsa al galoppo in programma per oggi.</em></p>"
-        print("\n❌ NESSUNA CORSA TROVATA.")
     else:
-        print(f"\n✅ TROVATE {len(link_validi)} RIUNIONI DI GALOPPO!\n")
-        
         for item in link_validi:
             nome_stampato = item['nome']
             driver.get(item['url'])
@@ -311,14 +299,12 @@ try:
             sito_html += "</div>\n</details>\n"
 
 except Exception as e:
-    print(f"\n❌ Errore critico catturato: {e}")
     sito_html += f"<br><div style='color:red; border:2px solid red; padding:10px;'><b>Errore improvviso:</b> {e}</div>"
 
 finally:
     sito_html += "</body></html>"
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(sito_html)
-    print(f"\n✅ STAMPA HTML COMPLETATA.")
     try:
         driver.quit()
     except:
