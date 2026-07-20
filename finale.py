@@ -101,10 +101,14 @@ def genera_calendario_g1():
     return html_cal
 
 # ==========================================
-# 3. RECUPERO NOTIZIE (Browser Invisibile + Filtro Cinese)
+# 3. RECUPERO NOTIZIE (Forza Bruta Anti-Cinese)
 # ==========================================
-def contiene_cinese(testo):
-    return any('\u4e00' <= char <= '\u9fff' for char in testo)
+def testo_pulito(testo):
+    # Blocca qualsiasi carattere con codice Unicode superiore a 12000 
+    # Questo intercetta TUTTI gli ideogrammi e la punteggiatura asiatica speciale come le parentesi 【 】
+    if any(ord(c) > 12000 for c in testo):
+        return False
+    return True
 
 def recupera_notizie_web(driver):
     html_news = ""
@@ -132,7 +136,7 @@ def recupera_notizie_web(driver):
                         link_tag = titolo_tag.find('a')
                         if link_tag and link_tag.has_attr('href'):
                             testo = link_tag.get_text(strip=True)
-                            if len(testo) > 15 and not contiene_cinese(testo):
+                            if len(testo) > 15 and testo_pulito(testo):
                                 url_notizia = urljoin(fonte['url'], link_tag['href'])
                                 if not any(testo == n['titolo'] for n in notizie_estratte):
                                     notizie_estratte.append({'titolo': testo, 'url': url_notizia})
@@ -143,7 +147,7 @@ def recupera_notizie_web(driver):
                 for a_tag in tutti_i_link:
                     testo = a_tag.get_text(strip=True)
                     
-                    if len(testo) > 25 and not contiene_cinese(testo):
+                    if len(testo) > 25 and testo_pulito(testo):
                         testo_lower = testo.lower()
                         fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo"]
                         
@@ -168,7 +172,7 @@ def recupera_notizie_web(driver):
     return html_news
 
 # ==========================================
-# 4. RISULTATI DI IERI (Estrattore Anti Pop-up)
+# 4. RISULTATI DI IERI (Taglio Brutale Anti-Javascript)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
@@ -197,13 +201,16 @@ def recupera_risultati_ieri(driver):
                 testo = a_tag.get_text(strip=True)
                 
                 if 'javascript:zoom' in href:
-                    match_url = re.search(r"javascript:zoom\(['\"]([^'\"]+)['\"]\)", href)
-                    if match_url:
-                        url_pulito = match_url.group(1).replace("%27", "")
+                    try:
+                        # Estrazione brutale senza regex per schivare le codifiche HTML (%27)
+                        url_raw = href.split("zoom(")[1].split(")")[0]
+                        url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
                         nome_gara = testo if testo else "Vedi"
                         
-                        if url_pulito not in [l['url'] for l in link_trovati]:
+                        if url_pulito.startswith("http") and not any(l['url'] == url_pulito for l in link_trovati):
                             link_trovati.append({"nome": nome_gara, "url": url_pulito})
+                    except:
+                        pass
         
         if link_trovati:
             html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
