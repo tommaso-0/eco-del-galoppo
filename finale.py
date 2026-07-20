@@ -13,7 +13,7 @@ DATA_OGGI = datetime.now().strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
 # ==========================================
-# 1. IL CAVALLO DEL GIORNO (Dal memoir.txt)
+# 1. IL CAVALLO DEL GIORNO (Dal tuo file memoir.txt)
 # ==========================================
 campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
 
@@ -30,7 +30,7 @@ except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
 # ==========================================
-# 2. RECUPERO NOTIZIE (Con link riparati e logica H1/H2/H3)
+# 2. RECUPERO NOTIZIE (Con link cliccabili e filtro anti-spazzatura)
 # ==========================================
 def recupera_notizie(driver):
     html_news = ""
@@ -43,6 +43,7 @@ def recupera_notizie(driver):
     ]
 
     for fonte in fonti:
+        print(f"   [📻] Contatto redazione: {fonte['nome']}...")
         try:
             driver.get(fonte['url'])
             time.sleep(4) 
@@ -52,14 +53,13 @@ def recupera_notizie(driver):
             notizie_estratte = []
             
             for t in titoli:
-                link_tag = t.find('a') # Cerchiamo il link DENTRO il titolo
+                link_tag = t.find('a') 
                 if link_tag and link_tag.has_attr('href'):
                     testo = link_tag.get_text(strip=True)
                     if len(testo) > 30 and not any(fuffa in testo for fuffa in ["Menu", "Search", "Cookie", "Privacy"]):
                         url_notizia = urljoin(fonte['url'], link_tag['href'])
                         
-                        # Evitiamo doppioni
-                        if non any(testo == n['titolo'] for n in notizie_estratte):
+                        if not any(testo == n['titolo'] for n in notizie_estratte):
                             notizie_estratte.append({'titolo': testo, 'url': url_notizia})
                             
                 if len(notizie_estratte) == 3: 
@@ -68,7 +68,6 @@ def recupera_notizie(driver):
             html_news += f'<div class="news-item"><div class="fonte">{fonte["nome"]}</div>'
             if notizie_estratte:
                 for news in notizie_estratte:
-                    # LINK RIPARATO E CLICCABILE
                     html_news += f'<h4><a href="{news["url"]}" target="_blank" style="color: #111; text-decoration: none;">{news["titolo"]}</a></h4>'
             else:
                 html_news += '<h4>Nessuna notizia rilevante al momento.</h4>'
@@ -86,11 +85,17 @@ options = uc.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
+options.add_argument('--disable-gpu') # Parametro salva-vita per GitHub Actions
+options.add_argument('--window-size=1920,1080') # Forza la risoluzione per non confondere i siti
+options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
 try:
     print("\n📡 Avvio del sistema multi-radar antiblocco...")
-    # Usiamo undetected_chromedriver per ingannare ippica.biz ed Equos
-    driver = uc.Chrome(options=options, use_subprocess=True)
+    driver = uc.Chrome(
+        options=options, 
+        use_subprocess=True,
+        version_main=150
+    )
     
     blocco_notizie_dinamico = recupera_notizie(driver)
 
