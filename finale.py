@@ -195,11 +195,11 @@ def recupera_risultati_ieri(driver):
     return html_risultati
 
 # ==========================================
-# 5. PARTENTI DI OGGI
+# 5. PARTENTI DI OGGI (Nuova logica "a strascico" indistruttibile)
 # ==========================================
 def recupera_partenti_oggi(driver):
     html_partenti = ""
-    print("   [📻] Intercettazione Partenti Ippica.biz...")
+    print("   [📻] Intercettazione Partenti Ippica.biz (Filtro a Strascico)...")
     try:
         menu_da_visitare = [
             {"nome": "Italia", "url": "https://www.ippica.biz/00_menu.asp", "base": "https://www.ippica.biz/0/14_tlx/"},
@@ -247,12 +247,18 @@ def recupera_partenti_oggi(driver):
                 last_num = 999
                 
                 soup = BeautifulSoup(driver.page_source, 'html.parser')
+                
+                # IL FIX È QUI: Estrazione senza cercare colonne fisse
                 for riga in soup.find_all('tr'):
-                    celle = [c.get_text(strip=True) for c in riga.find_all(['td', 'th'])]
+                    # Prendiamo tutte le celle non vuote di questa riga
+                    celle = [c.get_text(strip=True) for c in riga.find_all(['td', 'th']) if c.get_text(strip=True)]
+                    if not celle: continue
+                    
                     testo_riga = " ".join(celle).upper()
-                    
-                    if not celle or "CAVALLO" in testo_riga: continue
-                    
+                    if "CAVALLO" in testo_riga and ("PESO" in testo_riga or "FANTINO" in testo_riga): 
+                        continue # Saltiamo l'intestazione
+                        
+                    # Cerchiamo l'orario e la distanza
                     m_ora = re.search(r'(?:ORE|ALLE)\s*(\d{1,2}[:\.]\d{2})', testo_riga)
                     if m_ora and not corsa_corrente["orario"]: corsa_corrente["orario"] = m_ora.group(1).replace(".", ":")
                     
@@ -260,19 +266,25 @@ def recupera_partenti_oggi(driver):
                     m_dist = re.search(r'(?:METRI|MT|\bM\b)\s*(\d{3,4})|(\d{3,4})\s*(?:METRI|MT|\bM\b)', t_dist)
                     if m_dist and not corsa_corrente["distanza"]: corsa_corrente["distanza"] = m_dist.group(1) if m_dist.group(1) else m_dist.group(2)
 
-                    num_raw = celle[1].replace(".", "").replace("°", "").strip() if len(celle) >= 5 else ""
-                    if num_raw.isdigit():
-                        num_int = int(num_raw)
+                    # Verifica robusta se è un cavallo (se il primo elemento è un numero)
+                    num_clean = celle[0].replace(".", "").replace("°", "")
+                    if num_clean.isdigit() and len(celle) >= 2:
+                        num_int = int(num_clean)
+                        
+                        # Se il numero è sceso o uguale, inizia una nuova corsa
                         if num_int <= last_num and last_num != 999:
                             corse_ippodromo.append(corsa_corrente)
                             num_corsa += 1
                             corsa_corrente = {"titolo": f"CORSA {num_corsa}", "orario": "", "distanza": "", "cavalli": []}
                             
                         last_num = num_int
-                        peso = celle[5] if len(celle) > 5 and re.match(r'^\d+([.,]\d+)?$', celle[5]) else (celle[4] if len(celle) > 4 else "?")
-                        fantino = celle[4] if len(celle) > 5 and re.match(r'^\d+([.,]\d+)?$', celle[5]) else (celle[5] if len(celle) > 5 else "?")
-                        corsa_corrente["cavalli"].append({"num": str(num_int).zfill(2), "nome": celle[2], "peso": peso, "fantino": fantino})
+                        nome_cavallo = celle[1]
+                        # Tutto il resto (fantino, peso, scuderia) lo mettiamo nei dettagli uniti da una stanghetta
+                        dettagli = " | ".join(celle[2:]) if len(celle) > 2 else ""
                         
+                        corsa_corrente["cavalli"].append({"num": str(num_int).zfill(2), "nome": nome_cavallo, "dettagli": dettagli})
+                        
+                    # Verifica se è l'intestazione di un premio
                     elif len(celle) == 1 and any(k in testo_riga for k in ["CORSA", "PREMIO", "PRIX", "ORE"]):
                         if len(corsa_corrente["cavalli"]) > 0:
                             corse_ippodromo.append(corsa_corrente)
@@ -289,9 +301,12 @@ def recupera_partenti_oggi(driver):
                     badge_ora = f"<span class='badge-ora'>🕒 {corsa['orario']}</span>" if corsa['orario'] else ""
                     badge_dist = f"<span class='badge-distanza'>📏 {corsa['distanza']}m</span>" if corsa['distanza'] else ""
                     
-                    html_partenti += f"<details class='corsa'><summary class='sub-tendina'><span>{titolo_pulito}</span> {badge_ora} {badge_dist}</summary>\n<table>\n<tr><th>N°</th><th>Cavallo</th><th>Peso</th><th>Fantino</th></tr>\n"
-                    for cav in corsa['cavalli']: html_partenti += f"<tr><td class='num'>[{cav['num']}]</td><td><b>{cav['nome']}</b></td><td>{cav['peso']}</td><td>{cav['fantino']}</td></tr>\n"
+                    # Tabella semplificata e infallibile a 3 colonne
+                    html_partenti += f"<details class='corsa'><summary class='sub-tendina'><span>{titolo_pulito}</span> {badge_ora} {badge_dist}</summary>\n<table>\n<tr><th>N°</th><th>Cavallo</th><th>Info (Peso / Fantino)</th></tr>\n"
+                    for cav in corsa['cavalli']: 
+                        html_partenti += f"<tr><td class='num'>[{cav['num']}]</td><td><b>{cav['nome']}</b></td><td>{cav['dettagli']}</td></tr>\n"
                     html_partenti += "</table>\n</details>\n"
+                    
                 html_partenti += "</div>\n</details>\n"
                 
     except Exception as e: html_partenti += f"<p style='color:red;'>Errore radar partenti: {e}</p>"
@@ -313,16 +328,12 @@ try:
     print("\n📡 Avvio del driver Chrome in incognito...")
     driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
     
-    # ESECUZIONE STRATEGICA: Ippica.biz deve essere navigato a browser intonso
     blocco_risultati = recupera_risultati_ieri(driver)
     blocco_partenti = recupera_partenti_oggi(driver)
     
-    # Doccia obbligatoria prima di andare sui siti internazionali
     driver.delete_all_cookies()
-    
     blocco_notizie = recupera_notizie_web(driver)
     
-    # Compilazione offline
     campione_oggi = recupera_cavallo_del_giorno()
     blocco_calendario = genera_calendario_g1()
     
