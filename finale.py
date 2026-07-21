@@ -6,6 +6,7 @@ import re
 import random
 import os
 from datetime import datetime
+import traceback
 
 print("📰 Accensione rotative de 'L'Eco del Galoppo'...")
 
@@ -119,7 +120,7 @@ def recupera_notizie_web(driver):
         print(f"   [📻] Contatto redazione: {fonte['nome']}...")
         try:
             driver.get(fonte['url'])
-            time.sleep(5) 
+            time.sleep(8) # Aumentato per i server lenti
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             notizie_estratte = []
 
@@ -143,8 +144,8 @@ def recupera_notizie_web(driver):
                 html_news += '<li><i>Nessuna notizia rilevante al momento.</i></li>'
             html_news += '</ul></div>'
             
-        except Exception:
-            html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list"><li><i>Collegamento alla redazione fallito.</i></li></ul></div>'
+        except Exception as e:
+            html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list"><li><i>Collegamento fallito ({e})</i></li></ul></div>'
 
     return html_news
 
@@ -156,7 +157,7 @@ def recupera_risultati_ieri(driver):
     print("   [📻] Intercettazione Risultati Ippica.biz...")
     try:
         driver.get("https://www.ippica.biz/")
-        time.sleep(7) 
+        time.sleep(10) # Aumentato
         js_magico = """
         function estraiTutto(win) {
             let h = ""; try { h += win.document.documentElement.outerHTML; } catch(e) {}
@@ -195,11 +196,11 @@ def recupera_risultati_ieri(driver):
     return html_risultati
 
 # ==========================================
-# 5. PARTENTI DI OGGI (Nuova logica "a strascico" indistruttibile)
+# 5. PARTENTI DI OGGI (A strascico)
 # ==========================================
 def recupera_partenti_oggi(driver):
     html_partenti = ""
-    print("   [📻] Intercettazione Partenti Ippica.biz (Filtro a Strascico)...")
+    print("   [📻] Intercettazione Partenti Ippica.biz...")
     try:
         menu_da_visitare = [
             {"nome": "Italia", "url": "https://www.ippica.biz/00_menu.asp", "base": "https://www.ippica.biz/0/14_tlx/"},
@@ -209,7 +210,7 @@ def recupera_partenti_oggi(driver):
         link_validi = []
         for menu in menu_da_visitare:
             driver.get(menu['url'])
-            time.sleep(5) 
+            time.sleep(8) # Aumentato
             soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
             
             for a_tag in soup_menu.find_all('a', href=True):
@@ -238,7 +239,7 @@ def recupera_partenti_oggi(driver):
         else:
             for item in link_validi:
                 driver.get(item['url'])
-                time.sleep(4) 
+                time.sleep(6) # Aumentato
                 html_partenti += f"<details class='ippodromo'><summary class='main-tendina'>{item['nome']}</summary>\n<div style='padding: 10px;'>\n"
                 
                 corse_ippodromo = []
@@ -248,17 +249,13 @@ def recupera_partenti_oggi(driver):
                 
                 soup = BeautifulSoup(driver.page_source, 'html.parser')
                 
-                # IL FIX È QUI: Estrazione senza cercare colonne fisse
                 for riga in soup.find_all('tr'):
-                    # Prendiamo tutte le celle non vuote di questa riga
                     celle = [c.get_text(strip=True) for c in riga.find_all(['td', 'th']) if c.get_text(strip=True)]
                     if not celle: continue
                     
                     testo_riga = " ".join(celle).upper()
-                    if "CAVALLO" in testo_riga and ("PESO" in testo_riga or "FANTINO" in testo_riga): 
-                        continue # Saltiamo l'intestazione
+                    if "CAVALLO" in testo_riga and ("PESO" in testo_riga or "FANTINO" in testo_riga): continue 
                         
-                    # Cerchiamo l'orario e la distanza
                     m_ora = re.search(r'(?:ORE|ALLE)\s*(\d{1,2}[:\.]\d{2})', testo_riga)
                     if m_ora and not corsa_corrente["orario"]: corsa_corrente["orario"] = m_ora.group(1).replace(".", ":")
                     
@@ -266,12 +263,9 @@ def recupera_partenti_oggi(driver):
                     m_dist = re.search(r'(?:METRI|MT|\bM\b)\s*(\d{3,4})|(\d{3,4})\s*(?:METRI|MT|\bM\b)', t_dist)
                     if m_dist and not corsa_corrente["distanza"]: corsa_corrente["distanza"] = m_dist.group(1) if m_dist.group(1) else m_dist.group(2)
 
-                    # Verifica robusta se è un cavallo (se il primo elemento è un numero)
                     num_clean = celle[0].replace(".", "").replace("°", "")
                     if num_clean.isdigit() and len(celle) >= 2:
                         num_int = int(num_clean)
-                        
-                        # Se il numero è sceso o uguale, inizia una nuova corsa
                         if num_int <= last_num and last_num != 999:
                             corse_ippodromo.append(corsa_corrente)
                             num_corsa += 1
@@ -279,12 +273,9 @@ def recupera_partenti_oggi(driver):
                             
                         last_num = num_int
                         nome_cavallo = celle[1]
-                        # Tutto il resto (fantino, peso, scuderia) lo mettiamo nei dettagli uniti da una stanghetta
                         dettagli = " | ".join(celle[2:]) if len(celle) > 2 else ""
-                        
                         corsa_corrente["cavalli"].append({"num": str(num_int).zfill(2), "nome": nome_cavallo, "dettagli": dettagli})
                         
-                    # Verifica se è l'intestazione di un premio
                     elif len(celle) == 1 and any(k in testo_riga for k in ["CORSA", "PREMIO", "PRIX", "ORE"]):
                         if len(corsa_corrente["cavalli"]) > 0:
                             corse_ippodromo.append(corsa_corrente)
@@ -301,7 +292,6 @@ def recupera_partenti_oggi(driver):
                     badge_ora = f"<span class='badge-ora'>🕒 {corsa['orario']}</span>" if corsa['orario'] else ""
                     badge_dist = f"<span class='badge-distanza'>📏 {corsa['distanza']}m</span>" if corsa['distanza'] else ""
                     
-                    # Tabella semplificata e infallibile a 3 colonne
                     html_partenti += f"<details class='corsa'><summary class='sub-tendina'><span>{titolo_pulito}</span> {badge_ora} {badge_dist}</summary>\n<table>\n<tr><th>N°</th><th>Cavallo</th><th>Info (Peso / Fantino)</th></tr>\n"
                     for cav in corsa['cavalli']: 
                         html_partenti += f"<tr><td class='num'>[{cav['num']}]</td><td><b>{cav['nome']}</b></td><td>{cav['dettagli']}</td></tr>\n"
@@ -312,10 +302,16 @@ def recupera_partenti_oggi(driver):
     except Exception as e: html_partenti += f"<p style='color:red;'>Errore radar partenti: {e}</p>"
     return html_partenti
 
-
 # ==========================================
 # 6. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
+
+# Inizializziamo il file HTML vuoto qui fuori, per prevenire il bug mortale dell'Exit Code 1
+sito_html = ""
+blocco_risultati = "<p>Dati non caricati.</p>"
+blocco_partenti = "<p>Dati non caricati.</p>"
+blocco_notizie = "<p>Dati non caricati.</p>"
+
 options = uc.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--no-sandbox')
@@ -331,9 +327,22 @@ try:
     blocco_risultati = recupera_risultati_ieri(driver)
     blocco_partenti = recupera_partenti_oggi(driver)
     
-    driver.delete_all_cookies()
+    try:
+        driver.delete_all_cookies()
+    except:
+        pass
+        
     blocco_notizie = recupera_notizie_web(driver)
     
+except Exception as main_e:
+    print(f"Errore critico durante l'estrazione web: {main_e}")
+    # Se il browser fallisce l'avvio, stampiamo il vero errore invece di far schiantare il programma
+    errore_tracciato = traceback.format_exc()
+    blocco_risultati = f"<div style='color:red;'>Errore di Sistema: Non è stato possibile avviare il radar web sui server di GitHub. Dettagli: {main_e}</div>"
+    blocco_partenti = f"<div style='color:red;'><pre>{errore_tracciato}</pre></div>"
+
+finally:
+    # La compilazione HTML ora avviene SEMPRE, sia in caso di successo che di fallimento
     campione_oggi = recupera_cavallo_del_giorno()
     blocco_calendario = genera_calendario_g1()
     
@@ -419,12 +428,10 @@ try:
     </body>
     </html>
     """
-except Exception as e:
-    sito_html += f"<br><div style='color:red; border:2px dashed #000; padding:10px; background:#fff;'><b>Errore critico:</b> {e}</div></body></html>"
 
-finally:
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(sito_html)
-    try: driver.quit()
+    try: 
+        if 'driver' in locals(): driver.quit()
     except: pass
-    print("Stampa completata con successo.")
+    print("Stampa completata. Il file HTML è stato generato.")
