@@ -31,7 +31,7 @@ except Exception as e:
     print(f"Errore caricamento memoir: {e}")
 
 # ==========================================
-# 2. CALENDARIO G1 DINAMICO
+# 2. ROAD TO GLORY (Calendario Dinamico)
 # ==========================================
 def genera_calendario_g1():
     g1_database = [
@@ -87,9 +87,10 @@ def genera_calendario_g1():
     html_cal = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;'>"
     for c in prossime_corse[:5]:
         etichetta = f"Tra {c[2]} giorni" if c[2] > 0 else "OGGI!"
-        colore_badge = "#8b0000" if c[2] < 7 else "#333" 
+        # Toni di grigio per le urgenze
+        colore_badge = "#000" if c[2] < 7 else "#666" 
         html_cal += f"""
-        <div style='background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);'>
+        <div style='background: #fff; border: 1px solid #aaa; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1);'>
             <div style='font-size: 11px; font-weight: bold; color: {colore_badge}; text-transform: uppercase;'>{etichetta}</div>
             <div style='font-family: Georgia, serif; font-weight: bold; font-size: 13px; margin: 5px 0;'>{c[0]}</div>
             <div style='font-size: 12px; color: #555;'>📅 {c[1]}</div>
@@ -152,14 +153,14 @@ def recupera_notizie_web(driver):
     return html_news
 
 # ==========================================
-# 4. RISULTATI DI IERI (Aspirapolvere Base Pulita)
+# 4. RISULTATI DI IERI (Lettura Totale Colonne)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
     print("   [📻] Intercettazione Risultati Ippica.biz...")
     try:
         driver.get("https://www.ippica.biz/")
-        time.sleep(8) 
+        time.sleep(7) 
         
         js_magico = """
         function estraiTutto(win) {
@@ -185,33 +186,34 @@ def recupera_risultati_ieri(driver):
                 tg = celle[1].get_text(strip=True).upper()
                 
                 if tg == 'G':
-                    for a_tag in celle[2].find_all('a', href=True):
-                        href = a_tag['href'].strip()
-                        href_lower = href.lower()
-                        num_corsa = a_tag.get_text(strip=True)
-                        
-                        # Filtro esatto per le corse passate
-                        if 'javascript:zoom' in href_lower and 'risris.asp' in href_lower:
-                            try:
-                                url_raw = href.split("zoom(")[1].split(")")[0]
-                                url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
-                                
-                                if not url_pulito.startswith("http"):
-                                    url_pulito = "http://www.ippica.biz/" + url_pulito.lstrip("/")
+                    # Leggiamo TUTTE le colonne successive per estrarre tutte le corse
+                    for cella_corsa in celle[2:]:
+                        for a_tag in cella_corsa.find_all('a', href=True):
+                            href = a_tag['href'].strip()
+                            href_lower = href.lower()
+                            num_corsa = a_tag.get_text(strip=True)
+                            
+                            if 'javascript:zoom' in href_lower and 'risris.asp' in href_lower:
+                                try:
+                                    url_raw = href.split("zoom(")[1].split(")")[0]
+                                    url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
                                     
-                                nome_completo = f"{ippodromo} - Corsa {num_corsa}"
-                                if not any(l['url'] == url_pulito for l in link_trovati):
-                                    link_trovati.append({"nome": nome_completo, "url": url_pulito})
-                            except:
-                                pass
+                                    if not url_pulito.startswith("http"):
+                                        url_pulito = "http://www.ippica.biz/" + url_pulito.lstrip("/")
+                                        
+                                    nome_completo = f"{ippodromo} - Corsa {num_corsa}"
+                                    if not any(l['url'] == url_pulito for l in link_trovati):
+                                        link_trovati.append({"nome": nome_completo, "url": url_pulito})
+                                except:
+                                    pass
         
         if link_trovati:
             html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
             for l in link_trovati:
-                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#fff; color:#111; padding:8px 12px; border:1px solid #999; border-radius:4px; text-decoration:none; font-weight:bold; font-size:13px; box-shadow: 1px 1px 3px rgba(0,0,0,0.1);'>🏁 {l['nome']}</a>"
+                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#fff; color:#000; padding:8px 12px; border:1px solid #666; border-radius:3px; text-decoration:none; font-weight:bold; font-size:13px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1);'>🏁 {l['nome']}</a>"
             html_risultati += "</div>"
         else:
-            html_risultati += "<p style='font-size: 13px; font-style: italic;'>(Nessun risultato al galoppo di ieri disponibile al momento).</p>"
+            html_risultati += "<p style='font-size: 13px; font-style: italic; color: #555;'>(Nessun risultato al galoppo di ieri disponibile al momento).</p>"
             
     except Exception as e:
         html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
@@ -233,12 +235,9 @@ try:
     print("\n📡 Avvio del driver Chrome in incognito...")
     driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
     
-    # NOVITA' STRATEGICA: Andiamo PRIMA su Ippica.biz per i risultati quando il browser è vergine
+    # Ordine strategico: Prima i risultati vecchi, poi le news e i partenti
     blocco_risultati = recupera_risultati_ieri(driver)
-    
-    # DOPO andiamo a raccogliere le news (che riempiono il bot di cookie ostili)
     blocco_notizie = recupera_notizie_web(driver)
-    
     blocco_calendario = genera_calendario_g1()
     
     sito_html = f"""
@@ -249,48 +248,49 @@ try:
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>L'Eco del Galoppo</title>
         <style>
+            /* STILE SCALA DI GRIGI */
             body {{ font-family: 'Courier New', Courier, monospace; background-color: #f4f4f4; color: #111; margin: 0; padding: 15px; }}
             .header {{ text-align: center; border-bottom: 4px double #000; padding-bottom: 10px; margin-bottom: 20px; }}
-            .header h1 {{ margin: 0; font-family: 'Georgia', serif; font-size: 32px; text-transform: uppercase; font-weight: bold; }}
-            .header p.sottotitolo {{ margin: 5px 0 0 0; font-family: 'Georgia', serif; font-style: italic; font-size: 14px; }}
+            .header h1 {{ margin: 0; font-family: 'Georgia', serif; font-size: 32px; text-transform: uppercase; font-weight: bold; color: #000; }}
+            .header p.sottotitolo {{ margin: 5px 0 0 0; font-family: 'Georgia', serif; font-style: italic; font-size: 14px; color: #333; }}
             
-            .box-storico {{ border: 2px dashed #000; padding: 15px; margin-bottom: 20px; background-color: #fff; }}
-            .box-titolo {{ font-weight: bold; text-align: center; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase; }}
+            .box-storico {{ border: 2px dashed #333; padding: 15px; margin-bottom: 20px; background-color: #fff; }}
+            .box-titolo {{ font-weight: bold; text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; text-transform: uppercase; color: #000; }}
             
             .sezione-news {{ margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }}
-            .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }}
+            .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; color: #000; }}
             
-            /* STILE NEWS */
+            /* STILE NEWS IN SCALA DI GRIGI */
             .news-grid {{ display: flex; flex-direction: column; gap: 15px; }}
-            .news-card {{ background-color: #fff; border: 1px solid #ddd; border-left: 5px solid #8b0000; padding: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); border-radius: 3px; }}
-            .fonte-badge {{ display: inline-block; background-color: #222; color: #fff; padding: 4px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border-radius: 3px; letter-spacing: 0.5px; }}
+            .news-card {{ background-color: #fff; border: 1px solid #ccc; border-left: 5px solid #444; padding: 15px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1); border-radius: 2px; }}
+            .fonte-badge {{ display: inline-block; background-color: #000; color: #fff; padding: 4px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border-radius: 2px; letter-spacing: 0.5px; }}
             .news-list {{ list-style-type: none; padding: 0; margin: 0; }}
             .news-list li {{ margin-bottom: 10px; font-family: 'Georgia', serif; font-size: 15px; line-height: 1.4; padding-left: 18px; position: relative; }}
-            .news-list li::before {{ content: "»"; position: absolute; left: 0; top: 0; color: #8b0000; font-weight: bold; font-size: 18px; line-height: 1.2; }}
-            .news-list li a {{ color: #111; text-decoration: none; transition: all 0.2s; display: inline-block; }}
-            .news-list li a:hover {{ color: #8b0000; text-decoration: underline; text-underline-offset: 3px; }}
+            .news-list li::before {{ content: "»"; position: absolute; left: 0; top: 0; color: #000; font-weight: bold; font-size: 18px; line-height: 1.2; }}
+            .news-list li a {{ color: #222; text-decoration: none; transition: all 0.2s; display: inline-block; }}
+            .news-list li a:hover {{ color: #000; text-decoration: underline; text-underline-offset: 3px; font-weight: bold; }}
             
             /* TENDINE IPPODROMI */
             details.ippodromo {{ background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }}
-            summary.main-tendina {{ background-color: #222; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }}
+            summary.main-tendina {{ background-color: #000; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }}
             summary.main-tendina::-webkit-details-marker {{ display: none; }}
             summary.main-tendina::before {{ content: '[+] '; font-family: monospace; }}
             details[open] > summary.main-tendina::before {{ content: '[-] '; }}
             
-            details.corsa {{ margin-bottom: 5px; border: 1px solid #ccc; background-color: #fafafa; }}
-            summary.sub-tendina {{ background-color: #e0e0e0; color: #000; padding: 10px; font-weight: bold; font-size: 13px; cursor: pointer; list-style: none; border-bottom: 1px solid #aaa; text-transform: uppercase; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
+            details.corsa {{ margin-bottom: 5px; border: 1px solid #999; background-color: #f9f9f9; }}
+            summary.sub-tendina {{ background-color: #e6e6e6; color: #000; padding: 10px; font-weight: bold; font-size: 13px; cursor: pointer; list-style: none; border-bottom: 1px solid #999; text-transform: uppercase; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
             summary.sub-tendina::-webkit-details-marker {{ display: none; }}
             summary.sub-tendina::before {{ content: '► '; font-size: 11px; }}
             details[open] > summary.sub-tendina::before {{ content: '▼ '; }}
             
-            .badge-ora {{ background: #e0e0e0; color: #000; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #999; letter-spacing: 0.5px; }}
-            .badge-distanza {{ background: #444; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #222; letter-spacing: 0.5px; }}
+            .badge-ora {{ background: #ccc; color: #000; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; border: 1px solid #777; letter-spacing: 0.5px; }}
+            .badge-distanza {{ background: #333; color: #fff; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; border: 1px solid #000; letter-spacing: 0.5px; }}
             
             table {{ width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; background-color: #fff; }}
-            th, td {{ padding: 10px 5px; border-bottom: 1px dashed #ccc; }}
-            th {{ border-bottom: 2px solid #000; background-color: #eee; text-transform: uppercase; }}
+            th, td {{ padding: 10px 5px; border-bottom: 1px dashed #aaa; }}
+            th {{ border-bottom: 2px solid #000; background-color: #ddd; text-transform: uppercase; color: #000; }}
             .num {{ font-weight: bold; width: 35px; text-align: center; }}
-            .etichetta-estero {{ font-size: 11px; color: #fff; background: #555; padding: 2px 6px; margin-left: 10px; border-radius: 4px; vertical-align: middle; }}
+            .etichetta-estero {{ font-size: 11px; color: #fff; background: #666; padding: 2px 6px; margin-left: 10px; border-radius: 2px; vertical-align: middle; }}
         </style>
     </head>
     <body>
@@ -302,11 +302,11 @@ try:
         
         <div class="box-storico">
             <div class="box-titolo">*** Il Cavallo del Giorno ***</div>
-            <b>{campione_oggi['nome']}</b><br><span style="font-size: 13px;">{campione_oggi['storia']}</span>
+            <b>{campione_oggi['nome']}</b><br><span style="font-size: 13px; color: #222;">{campione_oggi['storia']}</span>
         </div>
         
-        <div class="sezione-news" style="background: #e9e9e9; padding: 15px; border: 1px solid #000;">
-            <div class="titolo-sezione" style="border-bottom: 1px dashed #000; padding-bottom: 10px; margin-top: 0;">Road to G1</div>
+        <div class="sezione-news" style="background: #e6e6e6; padding: 15px; border: 1px solid #000;">
+            <div class="titolo-sezione" style="border-bottom: 1px dashed #000; padding-bottom: 10px; margin-top: 0;">Road to Glory</div>
             {blocco_calendario}
         </div>
 
@@ -362,7 +362,7 @@ try:
                         link_validi.append({'url': url_assoluto, 'nome': nome_tendina})
     
     if not link_validi:
-        sito_html += "<p><em>Nessuna corsa al galoppo in programma per oggi.</em></p>"
+        sito_html += "<p style='font-style: italic; color: #555;'>Nessuna corsa al galoppo in programma per oggi.</p>"
     else:
         for item in link_validi:
             nome_stampato = item['nome']
@@ -458,7 +458,7 @@ try:
             sito_html += "</div>\n</details>\n"
 
 except Exception as e:
-    sito_html += f"<br><div style='color:red; border:2px solid red; padding:10px;'><b>Errore del radar:</b> {e}</div>"
+    sito_html += f"<br><div style='color:red; border:2px dashed #000; padding:10px; background:#fff;'><b>Errore del radar:</b> {e}</div>"
 
 finally:
     sito_html += "</body></html>"
