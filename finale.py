@@ -99,7 +99,7 @@ def genera_calendario_g1():
     return html_cal
 
 # ==========================================
-# 3. RECUPERO NOTIZIE (Restyling Premium)
+# 3. RECUPERO NOTIZIE 
 # ==========================================
 def testo_pulito(testo):
     if any(ord(c) > 12000 for c in testo):
@@ -138,7 +138,6 @@ def recupera_notizie_web(driver):
                             
                 if len(notizie_estratte) == 3: break
 
-            # Nuova struttura grafica: Card per ogni fonte
             html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list">'
             if notizie_estratte:
                 for news in notizie_estratte:
@@ -151,22 +150,16 @@ def recupera_notizie_web(driver):
             html_news += f'<div class="news-card"><div class="fonte-badge">🗞️ {fonte["nome"]}</div><ul class="news-list"><li><i>Collegamento alla redazione fallito.</i></li></ul></div>'
 
     return html_news
+
 # ==========================================
-# 4. RISULTATI DI IERI (Reset di Sessione e Filtro Negativo)
+# 4. RISULTATI DI IERI (Aspirapolvere Base Pulita)
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
-    print("   [📻] Intercettazione Risultati Ippica.biz (Reset Sessione)...")
+    print("   [📻] Intercettazione Risultati Ippica.biz...")
     try:
-        # 1. Pulizia drastica: azzeriamo il browser per non confondere il server vecchio
-        driver.get("about:blank")
-        driver.delete_all_cookies()
-        
-        # 2. Entriamo e "bussiamo due volte" (Refresh) per forzare il pass di sessione
         driver.get("https://www.ippica.biz/")
-        time.sleep(5) 
-        driver.refresh() # IL SEGRETO E' QUI: ricaricare la pagina assicura il cookie
-        time.sleep(6) 
+        time.sleep(8) 
         
         js_magico = """
         function estraiTutto(win) {
@@ -191,15 +184,14 @@ def recupera_risultati_ieri(driver):
                 ippodromo = celle[0].get_text(strip=True)
                 tg = celle[1].get_text(strip=True).upper()
                 
-                # Filtriamo solo il Galoppo ("G")
                 if tg == 'G':
                     for a_tag in celle[2].find_all('a', href=True):
                         href = a_tag['href'].strip()
                         href_lower = href.lower()
                         num_corsa = a_tag.get_text(strip=True)
                         
-                        # LOGICA INFALLIBILE: Prendiamo tutti i link zoom, TRANNE 'par.asp' (partenti futuri)
-                        if 'javascript:zoom' in href_lower and 'par.asp' not in href_lower:
+                        # Filtro esatto per le corse passate
+                        if 'javascript:zoom' in href_lower and 'risris.asp' in href_lower:
                             try:
                                 url_raw = href.split("zoom(")[1].split(")")[0]
                                 url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
@@ -225,7 +217,7 @@ def recupera_risultati_ieri(driver):
         html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
         
     return html_risultati
-    
+
 # ==========================================
 # 5. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
@@ -241,9 +233,13 @@ try:
     print("\n📡 Avvio del driver Chrome in incognito...")
     driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
     
-    blocco_notizie = recupera_notizie_web(driver)
-    blocco_calendario = genera_calendario_g1()
+    # NOVITA' STRATEGICA: Andiamo PRIMA su Ippica.biz per i risultati quando il browser è vergine
     blocco_risultati = recupera_risultati_ieri(driver)
+    
+    # DOPO andiamo a raccogliere le news (che riempiono il bot di cookie ostili)
+    blocco_notizie = recupera_notizie_web(driver)
+    
+    blocco_calendario = genera_calendario_g1()
     
     sito_html = f"""
     <!DOCTYPE html>
@@ -264,7 +260,7 @@ try:
             .sezione-news {{ margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }}
             .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; }}
             
-            /* NUOVO STILE NEWS */
+            /* STILE NEWS */
             .news-grid {{ display: flex; flex-direction: column; gap: 15px; }}
             .news-card {{ background-color: #fff; border: 1px solid #ddd; border-left: 5px solid #8b0000; padding: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); border-radius: 3px; }}
             .fonte-badge {{ display: inline-block; background-color: #222; color: #fff; padding: 4px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border-radius: 3px; letter-spacing: 0.5px; }}
