@@ -14,21 +14,22 @@ STR_OGGI = DATA_OGGI.strftime("%d/%m/%Y")
 HTML_OUTPUT = "eco_del_galoppo.html"
 
 # ==========================================
-# 1. IL CAVALLO DEL GIORNO (Dal memoir.txt)
+# 1. IL CAVALLO DEL GIORNO 
 # ==========================================
-campione_oggi = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
-
-try:
-    file_trovato = next((f for f in os.listdir('.') if f.lower() == 'memoir.txt'), None)
-    if file_trovato:
-        with open(file_trovato, "r", encoding="utf-8") as f:
-            linee = [line.strip() for line in f if "|" in line]
-        if linee:
-            scelta = random.choice(linee)
-            nome_c, storia_c = scelta.split("|", 1)
-            campione_oggi = {"nome": nome_c.strip(), "storia": storia_c.strip()}
-except Exception as e:
-    print(f"Errore caricamento memoir: {e}")
+def recupera_cavallo_del_giorno():
+    campione = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
+    try:
+        file_trovato = next((f for f in os.listdir('.') if f.lower() == 'memoir.txt'), None)
+        if file_trovato:
+            with open(file_trovato, "r", encoding="utf-8") as f:
+                linee = [line.strip() for line in f if "|" in line]
+            if linee:
+                scelta = random.choice(linee)
+                nome_c, storia_c = scelta.split("|", 1)
+                campione = {"nome": nome_c.strip(), "storia": storia_c.strip()}
+    except Exception as e:
+        print(f"Errore caricamento memoir: {e}")
+    return campione
 
 # ==========================================
 # 2. ROAD TO GLORY (Calendario Dinamico)
@@ -87,7 +88,6 @@ def genera_calendario_g1():
     html_cal = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;'>"
     for c in prossime_corse[:5]:
         etichetta = f"Tra {c[2]} giorni" if c[2] > 0 else "OGGI!"
-        # Toni di grigio per le urgenze
         colore_badge = "#000" if c[2] < 7 else "#666" 
         html_cal += f"""
         <div style='background: #fff; border: 1px solid #aaa; padding: 10px; border-radius: 4px; flex: 1; min-width: 180px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1);'>
@@ -103,8 +103,7 @@ def genera_calendario_g1():
 # 3. RECUPERO NOTIZIE 
 # ==========================================
 def testo_pulito(testo):
-    if any(ord(c) > 12000 for c in testo):
-        return False
+    if any(ord(c) > 12000 for c in testo): return False
     return True
 
 def recupera_notizie_web(driver):
@@ -124,14 +123,11 @@ def recupera_notizie_web(driver):
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             notizie_estratte = []
 
-            tutti_i_link = soup.find_all('a', href=True)
-            for a_tag in tutti_i_link:
+            for a_tag in soup.find_all('a', href=True):
                 testo = a_tag.get_text(strip=True)
-                
                 if len(testo) > 25 and testo_pulito(testo):
                     testo_lower = testo.lower()
                     fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo"]
-                    
                     if not any(parola in testo_lower for parola in fuffa):
                         url_notizia = urljoin(fonte['url'], a_tag['href'])
                         if not any(testo == n['titolo'] for n in notizie_estratte):
@@ -153,7 +149,7 @@ def recupera_notizie_web(driver):
     return html_news
 
 # ==========================================
-# 4. RISULTATI DI IERI (Lettura Totale Colonne)
+# 4. RISULTATI DI IERI
 # ==========================================
 def recupera_risultati_ieri(driver):
     html_risultati = ""
@@ -161,67 +157,149 @@ def recupera_risultati_ieri(driver):
     try:
         driver.get("https://www.ippica.biz/")
         time.sleep(7) 
-        
         js_magico = """
         function estraiTutto(win) {
-            let html_totale = "";
-            try { html_totale += win.document.documentElement.outerHTML; } catch(e) {}
-            for (let i = 0; i < win.frames.length; i++) {
-                try { html_totale += estraiTutto(win.frames[i]); } catch(e) {}
-            }
-            return html_totale;
-        }
-        return estraiTutto(window);
+            let h = ""; try { h += win.document.documentElement.outerHTML; } catch(e) {}
+            for (let i = 0; i < win.frames.length; i++) { try { h += estraiTutto(win.frames[i]); } catch(e) {} }
+            return h;
+        } return estraiTutto(window);
         """
-        
-        html_gigante = driver.execute_script(js_magico)
-        soup = BeautifulSoup(html_gigante, 'html.parser')
-        
+        soup = BeautifulSoup(driver.execute_script(js_magico), 'html.parser')
         link_trovati = []
         
         for riga in soup.find_all('tr'):
             celle = riga.find_all('td')
-            if len(celle) >= 3:
+            if len(celle) >= 3 and celle[1].get_text(strip=True).upper() == 'G':
                 ippodromo = celle[0].get_text(strip=True)
-                tg = celle[1].get_text(strip=True).upper()
-                
-                if tg == 'G':
-                    # Leggiamo TUTTE le colonne successive per estrarre tutte le corse
-                    for cella_corsa in celle[2:]:
-                        for a_tag in cella_corsa.find_all('a', href=True):
-                            href = a_tag['href'].strip()
-                            href_lower = href.lower()
-                            num_corsa = a_tag.get_text(strip=True)
-                            
-                            if 'javascript:zoom' in href_lower and 'risris.asp' in href_lower:
-                                try:
-                                    url_raw = href.split("zoom(")[1].split(")")[0]
-                                    url_pulito = url_raw.replace("'", "").replace('"', "").replace("%27", "").strip()
-                                    
-                                    if not url_pulito.startswith("http"):
-                                        url_pulito = "http://www.ippica.biz/" + url_pulito.lstrip("/")
-                                        
-                                    nome_completo = f"{ippodromo} - Corsa {num_corsa}"
-                                    if not any(l['url'] == url_pulito for l in link_trovati):
-                                        link_trovati.append({"nome": nome_completo, "url": url_pulito})
-                                except:
-                                    pass
+                for cella_corsa in celle[2:]:
+                    for a_tag in cella_corsa.find_all('a', href=True):
+                        href = a_tag['href'].strip()
+                        num_corsa = a_tag.get_text(strip=True)
+                        if 'javascript:zoom' in href.lower() and 'risris.asp' in href.lower():
+                            try:
+                                url_pulito = href.split("zoom(")[1].split(")")[0].replace("'", "").replace('"', "").strip()
+                                if not url_pulito.startswith("http"): url_pulito = "http://www.ippica.biz/" + url_pulito.lstrip("/")
+                                nome_completo = f"{ippodromo} - Corsa {num_corsa}"
+                                if not any(l['url'] == url_pulito for l in link_trovati):
+                                    link_trovati.append({"nome": nome_completo, "url": url_pulito})
+                            except: pass
         
         if link_trovati:
             html_risultati += "<div style='display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;'>"
-            for l in link_trovati:
-                html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#fff; color:#000; padding:8px 12px; border:1px solid #666; border-radius:3px; text-decoration:none; font-weight:bold; font-size:13px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1);'>🏁 {l['nome']}</a>"
+            for l in link_trovati: html_risultati += f"<a href='{l['url']}' target='_blank' style='display:inline-block; background:#fff; color:#000; padding:8px 12px; border:1px solid #666; border-radius:3px; text-decoration:none; font-weight:bold; font-size:13px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1);'>🏁 {l['nome']}</a>"
             html_risultati += "</div>"
         else:
             html_risultati += "<p style='font-size: 13px; font-style: italic; color: #555;'>(Nessun risultato al galoppo di ieri disponibile al momento).</p>"
             
-    except Exception as e:
-        html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
-        
+    except Exception as e: html_risultati += f"<p style='color:red;'>Errore radar risultati: {e}</p>"
     return html_risultati
 
 # ==========================================
-# 5. AVVIO DEL MOTORE E IMPAGINATORE HTML
+# 5. PARTENTI DI OGGI
+# ==========================================
+def recupera_partenti_oggi(driver):
+    html_partenti = ""
+    print("   [📻] Intercettazione Partenti Ippica.biz...")
+    try:
+        menu_da_visitare = [
+            {"nome": "Italia", "url": "https://www.ippica.biz/00_menu.asp", "base": "https://www.ippica.biz/0/14_tlx/"},
+            {"nome": "Estero", "url": "https://www.ippica.biz/1/14_fnz/14_IB_progr_estere.asp?fnz=1&scroll=no&P01=2016&g=1", "base": "https://www.ippica.biz/1/14_tlx/"}
+        ]
+        
+        link_validi = []
+        for menu in menu_da_visitare:
+            driver.get(menu['url'])
+            time.sleep(5) 
+            soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
+            
+            for a_tag in soup_menu.find_all('a', href=True):
+                href = a_tag['href'].strip()
+                testo = a_tag.get_text(strip=True).upper()
+                
+                if '.asp?' in href.lower() and 'TG=T' not in href.upper():
+                    if 'CORSA=0' in href.upper() or 'IPPO=' in href.upper() or testo == 'C':
+                        match_ippo = re.search(r'IPPO=([^&]+)', href.upper())
+                        nome_tendina = match_ippo.group(1).replace("%20", " ").replace("+", " ").upper() if match_ippo else "GARA"
+                        if menu['nome'] == "Estero": nome_tendina += " <span class='etichetta-estero'>INT</span>"
+                        
+                        url_assoluto = None
+                        match_http = re.search(r'(http[s]?://[^\s\)\'"]+)', href)
+                        
+                        if match_http: url_assoluto = match_http.group(1).replace("%27", "")
+                        else:
+                            match_file = re.search(r'([a-zA-Z0-9_]+\.asp\?[^\s\)\'"]+)', href)
+                            if match_file: url_assoluto = menu['base'] + match_file.group(1).replace("%27", "").replace("&amp;", "&")
+                        
+                        if url_assoluto and not any(l['nome'] == nome_tendina for l in link_validi):
+                            link_validi.append({'url': url_assoluto, 'nome': nome_tendina})
+        
+        if not link_validi:
+            html_partenti += "<p style='font-style: italic; color: #555;'>Nessuna corsa al galoppo in programma per oggi.</p>"
+        else:
+            for item in link_validi:
+                driver.get(item['url'])
+                time.sleep(4) 
+                html_partenti += f"<details class='ippodromo'><summary class='main-tendina'>{item['nome']}</summary>\n<div style='padding: 10px;'>\n"
+                
+                corse_ippodromo = []
+                corsa_corrente = {"titolo": "CORSA 1", "orario": "", "distanza": "", "cavalli": []}
+                num_corsa = 1
+                last_num = 999
+                
+                soup = BeautifulSoup(driver.page_source, 'html.parser')
+                for riga in soup.find_all('tr'):
+                    celle = [c.get_text(strip=True) for c in riga.find_all(['td', 'th'])]
+                    testo_riga = " ".join(celle).upper()
+                    
+                    if not celle or "CAVALLO" in testo_riga: continue
+                    
+                    m_ora = re.search(r'(?:ORE|ALLE)\s*(\d{1,2}[:\.]\d{2})', testo_riga)
+                    if m_ora and not corsa_corrente["orario"]: corsa_corrente["orario"] = m_ora.group(1).replace(".", ":")
+                    
+                    t_dist = testo_riga.replace(".", "").replace(",", "")
+                    m_dist = re.search(r'(?:METRI|MT|\bM\b)\s*(\d{3,4})|(\d{3,4})\s*(?:METRI|MT|\bM\b)', t_dist)
+                    if m_dist and not corsa_corrente["distanza"]: corsa_corrente["distanza"] = m_dist.group(1) if m_dist.group(1) else m_dist.group(2)
+
+                    num_raw = celle[1].replace(".", "").replace("°", "").strip() if len(celle) >= 5 else ""
+                    if num_raw.isdigit():
+                        num_int = int(num_raw)
+                        if num_int <= last_num and last_num != 999:
+                            corse_ippodromo.append(corsa_corrente)
+                            num_corsa += 1
+                            corsa_corrente = {"titolo": f"CORSA {num_corsa}", "orario": "", "distanza": "", "cavalli": []}
+                            
+                        last_num = num_int
+                        peso = celle[5] if len(celle) > 5 and re.match(r'^\d+([.,]\d+)?$', celle[5]) else (celle[4] if len(celle) > 4 else "?")
+                        fantino = celle[4] if len(celle) > 5 and re.match(r'^\d+([.,]\d+)?$', celle[5]) else (celle[5] if len(celle) > 5 else "?")
+                        corsa_corrente["cavalli"].append({"num": str(num_int).zfill(2), "nome": celle[2], "peso": peso, "fantino": fantino})
+                        
+                    elif len(celle) == 1 and any(k in testo_riga for k in ["CORSA", "PREMIO", "PRIX", "ORE"]):
+                        if len(corsa_corrente["cavalli"]) > 0:
+                            corse_ippodromo.append(corsa_corrente)
+                            num_corsa += 1
+                            corsa_corrente = {"titolo": celle[0], "orario": "", "distanza": "", "cavalli": []}
+                            last_num = 999
+                        else: corsa_corrente["titolo"] = celle[0]
+                
+                if corsa_corrente["cavalli"]: corse_ippodromo.append(corsa_corrente)
+                    
+                for corsa in corse_ippodromo:
+                    titolo_pulito = re.sub(r'(?i)(?:-?\s*ORE\s*\d{1,2}[:\.]\d{2})|(?i)(?:-?\s*(?:METRI|MT\.?|M\.?)\s*\d{3,4})|(?i)(?:\d{3,4}\s*(?:METRI|MT\.?|M\.?))', '', corsa['titolo']).strip(' -')
+                    if not titolo_pulito: titolo_pulito = "CORSA"
+                    badge_ora = f"<span class='badge-ora'>🕒 {corsa['orario']}</span>" if corsa['orario'] else ""
+                    badge_dist = f"<span class='badge-distanza'>📏 {corsa['distanza']}m</span>" if corsa['distanza'] else ""
+                    
+                    html_partenti += f"<details class='corsa'><summary class='sub-tendina'><span>{titolo_pulito}</span> {badge_ora} {badge_dist}</summary>\n<table>\n<tr><th>N°</th><th>Cavallo</th><th>Peso</th><th>Fantino</th></tr>\n"
+                    for cav in corsa['cavalli']: html_partenti += f"<tr><td class='num'>[{cav['num']}]</td><td><b>{cav['nome']}</b></td><td>{cav['peso']}</td><td>{cav['fantino']}</td></tr>\n"
+                    html_partenti += "</table>\n</details>\n"
+                html_partenti += "</div>\n</details>\n"
+                
+    except Exception as e: html_partenti += f"<p style='color:red;'>Errore radar partenti: {e}</p>"
+    return html_partenti
+
+
+# ==========================================
+# 6. AVVIO DEL MOTORE E IMPAGINATORE HTML
 # ==========================================
 options = uc.ChromeOptions()
 options.add_argument('--headless=new')
@@ -235,9 +313,17 @@ try:
     print("\n📡 Avvio del driver Chrome in incognito...")
     driver = uc.Chrome(options=options, use_subprocess=True, version_main=150)
     
-    # Ordine strategico: Prima i risultati vecchi, poi le news e i partenti
+    # ESECUZIONE STRATEGICA: Ippica.biz deve essere navigato a browser intonso
     blocco_risultati = recupera_risultati_ieri(driver)
+    blocco_partenti = recupera_partenti_oggi(driver)
+    
+    # Doccia obbligatoria prima di andare sui siti internazionali
+    driver.delete_all_cookies()
+    
     blocco_notizie = recupera_notizie_web(driver)
+    
+    # Compilazione offline
+    campione_oggi = recupera_cavallo_del_giorno()
     blocco_calendario = genera_calendario_g1()
     
     sito_html = f"""
@@ -248,7 +334,6 @@ try:
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>L'Eco del Galoppo</title>
         <style>
-            /* STILE SCALA DI GRIGI */
             body {{ font-family: 'Courier New', Courier, monospace; background-color: #f4f4f4; color: #111; margin: 0; padding: 15px; }}
             .header {{ text-align: center; border-bottom: 4px double #000; padding-bottom: 10px; margin-bottom: 20px; }}
             .header h1 {{ margin: 0; font-family: 'Georgia', serif; font-size: 32px; text-transform: uppercase; font-weight: bold; color: #000; }}
@@ -260,7 +345,6 @@ try:
             .sezione-news {{ margin-bottom: 30px; border-top: 4px double #000; padding-top: 15px; }}
             .titolo-sezione {{ font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; font-family: 'Georgia', serif; color: #000; }}
             
-            /* STILE NEWS IN SCALA DI GRIGI */
             .news-grid {{ display: flex; flex-direction: column; gap: 15px; }}
             .news-card {{ background-color: #fff; border: 1px solid #ccc; border-left: 5px solid #444; padding: 15px; box-shadow: 2px 2px 0px rgba(0,0,0,0.1); border-radius: 2px; }}
             .fonte-badge {{ display: inline-block; background-color: #000; color: #fff; padding: 4px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border-radius: 2px; letter-spacing: 0.5px; }}
@@ -270,7 +354,6 @@ try:
             .news-list li a {{ color: #222; text-decoration: none; transition: all 0.2s; display: inline-block; }}
             .news-list li a:hover {{ color: #000; text-decoration: underline; text-underline-offset: 3px; font-weight: bold; }}
             
-            /* TENDINE IPPODROMI */
             details.ippodromo {{ background-color: #fff; border: 1px solid #000; margin-bottom: 15px; }}
             summary.main-tendina {{ background-color: #000; color: #fff; padding: 12px; font-weight: bold; font-size: 15px; cursor: pointer; list-style: none; }}
             summary.main-tendina::-webkit-details-marker {{ display: none; }}
@@ -321,151 +404,16 @@ try:
         {blocco_risultati}
         
         <div class="titolo-sezione" style="margin-top: 40px;">Partenti di Oggi</div>
+        {blocco_partenti}
+    </body>
+    </html>
     """
-
-    menu_da_visitare = [
-        {"nome": "Italia", "url": "https://www.ippica.biz/00_menu.asp", "base": "https://www.ippica.biz/0/14_tlx/"},
-        {"nome": "Estero", "url": "https://www.ippica.biz/1/14_fnz/14_IB_progr_estere.asp?fnz=1&scroll=no&P01=2016&g=1", "base": "https://www.ippica.biz/1/14_tlx/"}
-    ]
-    
-    link_validi = []
-    
-    for menu in menu_da_visitare:
-        driver.get(menu['url'])
-        time.sleep(5) 
-        soup_menu = BeautifulSoup(driver.page_source, 'html.parser')
-        
-        for a_tag in soup_menu.find_all('a', href=True):
-            href = a_tag['href'].strip()
-            testo = a_tag.get_text(strip=True).upper()
-            
-            if '.asp?' in href.lower() and 'TG=T' not in href.upper():
-                if 'CORSA=0' in href.upper() or 'IPPO=' in href.upper() or testo == 'C':
-                    
-                    match_ippo = re.search(r'IPPO=([^&]+)', href.upper())
-                    nome_tendina = match_ippo.group(1).replace("%20", " ").replace("+", " ").upper() if match_ippo else "GARA"
-                    if menu['nome'] == "Estero":
-                        nome_tendina += " <span class='etichetta-estero'>INT</span>"
-                    
-                    url_assoluto = None
-                    match_http = re.search(r'(http[s]?://[^\s\)\'"]+)', href)
-                    
-                    if match_http:
-                        url_assoluto = match_http.group(1).replace("%27", "")
-                    else:
-                        match_file = re.search(r'([a-zA-Z0-9_]+\.asp\?[^\s\)\'"]+)', href)
-                        if match_file:
-                            file_pulito = match_file.group(1).replace("%27", "").replace("&amp;", "&")
-                            url_assoluto = menu['base'] + file_pulito
-                    
-                    if url_assoluto and not any(l['nome'] == nome_tendina for l in link_validi):
-                        link_validi.append({'url': url_assoluto, 'nome': nome_tendina})
-    
-    if not link_validi:
-        sito_html += "<p style='font-style: italic; color: #555;'>Nessuna corsa al galoppo in programma per oggi.</p>"
-    else:
-        for item in link_validi:
-            nome_stampato = item['nome']
-            driver.get(item['url'])
-            time.sleep(4) 
-            
-            sito_html += f"<details class='ippodromo'><summary class='main-tendina'>{nome_stampato}</summary>\n<div style='padding: 10px;'>\n"
-            
-            corse_ippodromo = []
-            corsa_corrente = {"titolo": "CORSA 1", "orario": "", "distanza": "", "cavalli": []}
-            num_corsa = 1
-            last_num = 999
-            
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
-            for riga in soup.find_all('tr'):
-                celle = [c.get_text(strip=True) for c in riga.find_all(['td', 'th'])]
-                testo_riga = " ".join(celle).upper()
-                
-                if not celle or "CAVALLO" in testo_riga:
-                    continue
-                
-                match_ora = re.search(r'(?:ORE|ALLE)\s*(\d{1,2}[:\.]\d{2})', testo_riga)
-                if match_ora and not corsa_corrente["orario"]:
-                    corsa_corrente["orario"] = match_ora.group(1).replace(".", ":")
-                
-                testo_dist_pulito = testo_riga.replace(".", "").replace(",", "")
-                match_dist = re.search(r'(?:METRI|MT|\bM\b)\s*(\d{3,4})|(\d{3,4})\s*(?:METRI|MT|\bM\b)', testo_dist_pulito)
-                if match_dist and not corsa_corrente["distanza"]:
-                    corsa_corrente["distanza"] = match_dist.group(1) if match_dist.group(1) else match_dist.group(2)
-
-                is_horse = False
-                num_raw = ""
-                if len(celle) >= 5:
-                    num_raw = celle[1].replace(".", "").replace("°", "").strip()
-                    if num_raw.isdigit():
-                        is_horse = True
-
-                if is_horse:
-                    num_int = int(num_raw)
-                    if num_int <= last_num and last_num != 999:
-                        corse_ippodromo.append(corsa_corrente)
-                        num_corsa += 1
-                        corsa_corrente = {"titolo": f"CORSA {num_corsa}", "orario": "", "distanza": "", "cavalli": []}
-                        
-                    last_num = num_int
-                    numero_formattato = str(num_int).zfill(2)
-                    cavallo = celle[2]
-                    val4 = celle[4] if len(celle) > 4 else "?"
-                    val5 = celle[5] if len(celle) > 5 else "?"
-                    
-                    if re.match(r'^\d+([.,]\d+)?$', val5):
-                        peso = val5
-                        fantino = val4
-                    else:
-                        peso = val4
-                        fantino = val5
-                        
-                    corsa_corrente["cavalli"].append({"num": numero_formattato, "nome": cavallo, "peso": peso, "fantino": fantino})
-                    
-                elif len(celle) == 1 and any(k in testo_riga for k in ["CORSA", "PREMIO", "PRIX", "ORE"]):
-                    if len(corsa_corrente["cavalli"]) > 0:
-                        corse_ippodromo.append(corsa_corrente)
-                        num_corsa += 1
-                        corsa_corrente = {"titolo": celle[0], "orario": "", "distanza": "", "cavalli": []}
-                        last_num = 999
-                        m_ora = re.search(r'(?:ORE|ALLE)\s*(\d{1,2}[:\.]\d{2})', testo_riga)
-                        if m_ora: corsa_corrente["orario"] = m_ora.group(1).replace(".", ":")
-                        m_dist = re.search(r'(?:METRI|MT|\bM\b)\s*(\d{3,4})|(\d{3,4})\s*(?:METRI|MT|\bM\b)', testo_dist_pulito)
-                        if m_dist: corsa_corrente["distanza"] = m_dist.group(1) if m_dist.group(1) else m_dist.group(2)
-                    else:
-                        corsa_corrente["titolo"] = celle[0]
-            
-            if corsa_corrente["cavalli"]:
-                corse_ippodromo.append(corsa_corrente)
-                
-            for corsa in corse_ippodromo:
-                titolo_pulito = re.sub(r'(?i)(?:-?\s*ORE\s*\d{1,2}[:\.]\d{2})', '', corsa['titolo'])
-                titolo_pulito = re.sub(r'(?i)(?:-?\s*(?:METRI|MT\.?|M\.?)\s*\d{3,4})', '', titolo_pulito)
-                titolo_pulito = re.sub(r'(?i)(?:\d{3,4}\s*(?:METRI|MT\.?|M\.?))', '', titolo_pulito)
-                titolo_pulito = titolo_pulito.strip(' -')
-                if not titolo_pulito: titolo_pulito = f"CORSA"
-
-                badge_ora = f"<span class='badge-ora'>🕒 {corsa['orario']}</span>" if corsa['orario'] else ""
-                badge_dist = f"<span class='badge-distanza'>📏 {corsa['distanza']}m</span>" if corsa['distanza'] else ""
-                
-                sito_html += f"<details class='corsa'><summary class='sub-tendina'><span>{titolo_pulito}</span> {badge_ora} {badge_dist}</summary>\n<table>\n<tr><th>N°</th><th>Cavallo</th><th>Peso</th><th>Fantino</th></tr>\n"
-                
-                for cav in corsa['cavalli']:
-                    sito_html += f"<tr><td class='num'>[{cav['num']}]</td><td><b>{cav['nome']}</b></td><td>{cav['peso']}</td><td>{cav['fantino']}</td></tr>\n"
-                
-                sito_html += "</table>\n</details>\n"
-
-            sito_html += "</div>\n</details>\n"
-
 except Exception as e:
-    sito_html += f"<br><div style='color:red; border:2px dashed #000; padding:10px; background:#fff;'><b>Errore del radar:</b> {e}</div>"
+    sito_html += f"<br><div style='color:red; border:2px dashed #000; padding:10px; background:#fff;'><b>Errore critico:</b> {e}</div></body></html>"
 
 finally:
-    sito_html += "</body></html>"
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(sito_html)
-    try:
-        driver.quit()
-    except:
-        pass
+    try: driver.quit()
+    except: pass
     print("Stampa completata con successo.")
