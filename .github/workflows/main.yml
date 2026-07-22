@@ -2,7 +2,7 @@ name: Stampa L'Eco del Galoppo
 
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 5 * * *'  # Ogni mattina alle 5:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
     - name: Avvia le rotative
       run: python finale.py
 
-    - name: Pubblica
+    - name: Pubblica su GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
