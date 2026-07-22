@@ -11,7 +11,7 @@ STR_OGGI = DATA_OGGI.strftime("%d/%m/%Y")
 HTML_OUTPUT = "index.html"
 
 # ==========================================
-# 0. CANE DA TARTUFO (Per i nomi ippodromi)
+# 0. CANE DA TARTUFO
 # ==========================================
 def esplora_json(dizionario, chiavi_target):
     for chiave, valore in dizionario.items():
@@ -95,7 +95,7 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Infiltrazione a 4 Strati)
+# 3. RASSEGNA STAMPA (Corazza Pesante + Googlebot)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
@@ -115,60 +115,64 @@ def recupera_notizie():
     ]
     
     html_news = "<div class='news-grid'>"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/rss+xml, application/xml, text/xml, */*"
+    
+    # Travestimento da Bot di Google
+    headers_fantasma = {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "*/*"
     }
+    
+    # Carosello dei Tunnel
+    tunnel_list = [
+        "", # Ingresso diretto
+        "https://api.codetabs.com/v1/proxy?quest=", # Tunnel 1
+        "https://api.allorigins.win/raw?url=" # Tunnel 2
+    ]
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
         entries = []
         
-        # TENTATIVO 1: Ingresso Principale (Diretto)
-        if not entries:
+        # FASE 1: Scansione Feed RSS con Carosello Proxy
+        for tunnel in tunnel_list:
+            if entries: break
             try:
-                res = requests.get(f['rss'], headers=headers, timeout=5)
+                url_bersaglio = tunnel + f['rss'] if tunnel else f['rss']
+                res = requests.get(url_bersaglio, headers=headers_fantasma, timeout=5)
                 if res.status_code == 200:
                     feed = feedparser.parse(res.content)
                     if feed.entries: entries = [Notizia(e.title, e.link) for e in feed.entries]
             except: pass
             
-        # TENTATIVO 2: Il Passpartout (RSS2JSON)
+        # FASE 2: Api Esterna (Passpartout JSON)
         if not entries:
             try:
                 res_json = requests.get(f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}", timeout=5).json()
                 if res_json.get('status') == 'ok':
                     entries = [Notizia(i.get('title', ''), i.get('link', '')) for i in res_json.get('items', [])]
             except: pass
-            
-        # TENTATIVO 3: La porta sul retro (AllOrigins)
-        if not entries:
-            try:
-                proxy_url = f"https://api.allorigins.win/get?url={f['rss']}"
-                res_proxy = requests.get(proxy_url, timeout=5).json()
-                if 'contents' in res_proxy:
-                    feed = feedparser.parse(res_proxy['contents'])
-                    if feed.entries: entries = [Notizia(e.title, e.link) for e in feed.entries]
-            except: pass
         
-        # TENTATIVO 4: Forza Bruta (Scraping HTML della Homepage)
+        # FASE 3: Raschiamento HTML Estremo (Forza Bruta + Carosello Proxy)
         if not entries:
-            try:
-                res_html = requests.get(f['url'], headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
-                soup = BeautifulSoup(res_html.text, 'html.parser')
-                fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read", "terms", "policy", "redazione", "chi siamo", "contact", "about", "advertisement", "author"]
-                
-                for a_tag in soup.find_all('a', href=True):
-                    testo = a_tag.get_text(strip=True)
-                    if len(testo) > 35 and not any(ord(c) > 12000 for c in testo):
-                        if not any(parola in testo.lower() for parola in fuffa):
-                            link = a_tag['href']
-                            if not link.startswith('http'): link = f['url'] + link if link.startswith('/') else f"{f['url']}/{link}"
-                            if not any(e.title == testo for e in entries):
-                                entries.append(Notizia(testo, link))
-            except: pass
+            for tunnel in tunnel_list:
+                if entries: break
+                try:
+                    url_bersaglio = tunnel + f['url'] if tunnel else f['url']
+                    res_html = requests.get(url_bersaglio, headers=headers_fantasma, timeout=5)
+                    soup = BeautifulSoup(res_html.text, 'html.parser')
+                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read", "terms", "policy", "redazione", "chi", "contact", "about", "advertisement", "author"]
+                    
+                    for a_tag in soup.find_all('a', href=True):
+                        testo = a_tag.get_text(strip=True)
+                        if len(testo) > 35 and not any(ord(c) > 12000 for c in testo):
+                            if not any(parola in testo.lower() for parola in fuffa):
+                                link = a_tag['href']
+                                if not link.startswith('http'): link = f['url'] + link if link.startswith('/') else f"{f['url']}/{link}"
+                                if not any(e.title == testo for e in entries):
+                                    entries.append(Notizia(testo, link))
+                except: pass
 
-        # ================= STAMPA A VIDEO =================
+        # STAMPA RISULTATI
         notizie_valide = 0
         for entry in entries:
             if notizie_valide >= 3: break
@@ -186,7 +190,7 @@ def recupera_notizie():
     return html_news
 
 # ==========================================
-# 4. PALINSESTO PALINSESTI (ORDINATO PER NAZIONE)
+# 4. PALINSESTO PALINSESTI
 # ==========================================
 def identifica_nazione(meeting, races):
     c_code = str(meeting.get('country', meeting.get('country_code', ''))).upper()
