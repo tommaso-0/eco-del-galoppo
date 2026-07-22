@@ -95,56 +95,78 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Infallibile)
+# 3. RASSEGNA STAMPA (Infallibile a 3 Livelli)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
 
 def recupera_notizie():
     fonti = [
-        {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/"},
-        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://www.thoroughbreddailynews.com/feed/"},
-        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/"},
-        {"nome": "BLOODHORSE (USA)", "rss": "https://www.bloodhorse.com/rss/news"},
-        {"nome": "PAULICK REPORT", "rss": "https://paulickreport.com/feed/"}
+        {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it", "rss": "https://www.italianpostracing.it/feed/"},
+        {"nome": "THOROUGHBRED DAILY NEWS", "url": "https://www.thoroughbreddailynews.com", "rss": "https://www.thoroughbreddailynews.com/feed/"},
+        {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com", "rss": "https://asianracingreport.com/feed/"},
+        {"nome": "BLOODHORSE (USA)", "url": "https://www.bloodhorse.com", "rss": "https://www.bloodhorse.com/rss/news"},
+        {"nome": "PAULICK REPORT", "url": "https://paulickreport.com", "rss": "https://paulickreport.com/feed/"}
     ]
     
     html_news = "<div class='news-grid'>"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    }
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
         
         try:
             entries = []
-            direct_failed = False
             
+            # LIVELLO 1: Connessione RSS Diretta
             try:
-                # 1. Timeout cortissimo: se il server ci tiene in sospeso, tagliamo subito (max 5 sec)
                 res = requests.get(f['rss'], headers=headers, timeout=5)
                 feed = feedparser.parse(res.content)
-                if res.status_code != 200 or len(feed.entries) == 0:
-                    direct_failed = True
-                else:
+                if res.status_code == 200 and len(feed.entries) > 0:
                     entries = feed.entries
-            except Exception:
-                direct_failed = True
+            except: pass
                 
-            # 2. PIANO B: Incursione tramite API RSS2JSON (Aggira i blocchi Anti-Bot)
-            if direct_failed:
-                api_url = f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}"
-                res_proxy = requests.get(api_url, timeout=5)
-                dati_json = res_proxy.json()
-                
-                if dati_json.get('status') == 'ok':
-                    for item in dati_json.get('items', []):
-                        class DummyEntry: pass
-                        e = DummyEntry()
-                        e.title = item.get('title', '')
-                        e.link = item.get('link', '')
-                        entries.append(e)
+            # LIVELLO 2: Proxy AllOrigins (Maschera l'IP di GitHub)
+            if not entries:
+                try:
+                    proxy_url = f"https://api.allorigins.win/get?url={f['rss']}"
+                    res_proxy = requests.get(proxy_url, timeout=5)
+                    if res_proxy.status_code == 200:
+                        content = res_proxy.json().get('contents', '')
+                        feed = feedparser.parse(content)
+                        if len(feed.entries) > 0:
+                            entries = feed.entries
+                except: pass
+            
+            # LIVELLO 3: Forza Bruta HTML (Raschia la Homepage)
+            if not entries:
+                try:
+                    res_html = requests.get(f['url'], headers=headers, timeout=5)
+                    soup = BeautifulSoup(res_html.text, 'html.parser')
+                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo", "contact", "about", "advertisement"]
+                    
+                    for a_tag in soup.find_all('a', href=True):
+                        testo = a_tag.get_text(strip=True)
+                        # Filtriamo i link veri: testo lungo, no caratteri strani, no parole fuffa
+                        if len(testo) > 35 and not any(ord(c) > 12000 for c in testo):
+                            if not any(parola in testo.lower() for parola in fuffa):
+                                link = a_tag['href']
+                                if not link.startswith('http'):
+                                    link = f['url'] + link if link.startswith('/') else f"{f['url']}/{link}"
+                                
+                                # Evitiamo doppioni
+                                if not any(e.title == testo for e in entries):
+                                    class OggettoNotizia: pass
+                                    e = OggettoNotizia()
+                                    e.title = testo
+                                    e.link = link
+                                    entries.append(e)
+                except: pass
 
-            # 3. Estrazione e Stampa
+            # STAMPA RISULTATI
             notizie_valide = 0
             for entry in entries:
                 if notizie_valide >= 3: break
