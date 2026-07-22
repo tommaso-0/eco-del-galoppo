@@ -95,7 +95,7 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Feed HTTP Puliti)
+# 3. RASSEGNA STAMPA (Bypassa Cloudflare con Proxy)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
@@ -110,15 +110,21 @@ def recupera_notizie():
     ]
     
     html_news = "<div class='news-grid'>"
-    # Mascheriamo la richiesta come un normale browser Chrome per eludere i blocchi anti-bot
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
         try:
+            # 1. Tentativo di estrazione diretta
             res = requests.get(f['rss'], headers=headers, timeout=10)
             feed = feedparser.parse(res.content)
             
+            # 2. Scudo Cloudflare intercettato (GitHub bloccato)? Usiamo un proxy fantasma!
+            if len(feed.entries) == 0 or res.status_code in [403, 401, 406]:
+                proxy_url = f"https://api.allorigins.win/raw?url={f['rss']}"
+                res_proxy = requests.get(proxy_url, headers=headers, timeout=10)
+                feed = feedparser.parse(res_proxy.content)
+                
             notizie_valide = 0
             for entry in feed.entries:
                 if notizie_valide >= 3: break
@@ -164,7 +170,6 @@ def identifica_nazione(meeting, races):
     if any(p in testo_corse for p in parole_uk):
         return "REGNO UNITO E IRLANDA"
         
-    # Essendo un'API del Regno Unito, se non dichiarano la nazione, al 99% sono a casa loro
     if not c_code or c_code == 'NONE':
         return "REGNO UNITO E IRLANDA"
         
@@ -242,7 +247,6 @@ def recupera_palinsesto_globale():
             html_out += f"<h3 class='day-header'>PALINSESTO {dq['lbl']} ({dq['val']})</h3>"
             
             for nazione in sorted(raggruppamento.keys()):
-                # Rimossa l'emoji dal separatore per mantenere lo stile minimal in scala di grigi
                 html_out += f"<div class='nation-group-title'>{nazione}</div>"
                 ippodromi_ordinati = sorted(raggruppamento[nazione], key=lambda x: x['nome'])
                 for ippo in ippodromi_ordinati:
