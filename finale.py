@@ -98,28 +98,30 @@ def genera_calendario_g1():
 # 3. RASSEGNA STAMPA (Feed HTTP Puliti)
 # ==========================================
 def contiene_asiatico(testo):
-    """Filtro di sicurezza per bloccare le notizie con ideogrammi cinesi o giapponesi"""
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
 
 def recupera_notizie():
     fonti = [
         {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/"},
         {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://www.thoroughbreddailynews.com/feed/"},
-        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/"}
+        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/"},
+        {"nome": "BLOODHORSE (USA)", "rss": "https://www.bloodhorse.com/rss/news"},
+        {"nome": "PAULICK REPORT", "rss": "https://paulickreport.com/feed/"}
     ]
     
     html_news = "<div class='news-grid'>"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    # Mascheriamo la richiesta come un normale browser Chrome per eludere i blocchi anti-bot
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
         try:
-            feed = feedparser.parse(f['rss'])
+            res = requests.get(f['rss'], headers=headers, timeout=10)
+            feed = feedparser.parse(res.content)
+            
             notizie_valide = 0
             for entry in feed.entries:
                 if notizie_valide >= 3: break
-                
-                # Se il titolo contiene ideogrammi, saltiamo alla prossima notizia
                 if contiene_asiatico(entry.title): continue
                     
                 html_news += f"<li><a href='{entry.link}' target='_blank'>{entry.title}</a></li>"
@@ -141,22 +143,30 @@ def identifica_nazione(meeting, races):
     c_code = str(meeting.get('country', meeting.get('country_code', ''))).upper()
     
     if c_code in ['FRA', 'FR']: return "FRANCIA"
-    if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO / IRLANDA"
+    if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO E IRLANDA"
     if c_code in ['US', 'USA']: return "STATI UNITI"
     if c_code in ['JP', 'JPN']: return "GIAPPONE"
     if c_code in ['HK', 'HKG']: return "HONG KONG"
     if c_code in ['RSA', 'ZA', 'SAF']: return "SUDAFRICA"
-    if c_code in ['AUS', 'NZ']: return "AUSTRALIA / NZ"
+    if c_code in ['AUS', 'NZ']: return "AUSTRALIA E NUOVA ZELANDA"
     
     testo_corse = " ".join([r.get('race_name', r.get('name', '')) for r in races]).upper()
     nome_ippodromo = str(meeting.get('name', meeting.get('course_name', ''))).upper()
     
-    parole_francesi = ['PRIX', 'ATTELE', 'HURDLE', 'HAUTE', 'CHOISY', 'MEDOC', 'CHAROLAIS', 'CHALLENGE']
+    parole_francesi = ['PRIX', 'ATTELE', 'HURDLE', 'HAUTE', 'CHOISY', 'MEDOC', 'CHAROLAIS', 'CHALLENGE', 'AUTEUIL']
     if any(p in testo_corse for p in parole_francesi) or any(p in nome_ippodromo for p in ['VICHY', 'ENGHIEN', 'DEAUVILLE', 'AUTEUIL', 'CAGNES']):
         return "FRANCIA"
         
     if any(p in testo_corse for p in ['CLAIMING', 'ALLOWANCE', 'MAIDEN SPECIAL']):
         return "STATI UNITI"
+        
+    parole_uk = ['NURSERY', 'HANDICAP', 'STAKES', 'NOVICE', 'MAIDEN STAKES']
+    if any(p in testo_corse for p in parole_uk):
+        return "REGNO UNITO E IRLANDA"
+        
+    # Essendo un'API del Regno Unito, se non dichiarano la nazione, al 99% sono a casa loro
+    if not c_code or c_code == 'NONE':
+        return "REGNO UNITO E IRLANDA"
         
     return c_code if c_code and c_code != 'NONE' else "INTERNAZIONALE"
 
@@ -178,14 +188,12 @@ def recupera_palinsesto_globale():
             meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
             if not meetings: continue
             
-            # Creiamo il cassetto per le nazioni
             raggruppamento = {}
             
             for m in meetings:
                 races = m.get('races', [])
                 if not races: continue
                 
-                # Sguinzagliamo il cane da tartufo per il nome
                 nome_ipp = esplora_json(m, ['name', 'course_name', 'meeting_name', 'venue']) or "IPPODROMO"
                 if nome_ipp == "IPPODROMO" and m.get('races'):
                     nome_ipp = esplora_json(m['races'][0], ['course_name', 'track', 'name']) or nome_ipp
@@ -227,16 +235,15 @@ def recupera_palinsesto_globale():
                             
                 ippo_html += "</div></details>"
                 
-                # Inseriamo l'HTML dell'ippodromo nel cassetto della sua nazione
                 if nome_nazione not in raggruppamento:
                     raggruppamento[nome_nazione] = []
                 raggruppamento[nome_nazione].append({"nome": nome_ipp.upper(), "html": ippo_html})
 
-            # Costruiamo il blocco HTML finale ordinando nazioni e ippodromi
             html_out += f"<h3 class='day-header'>PALINSESTO {dq['lbl']} ({dq['val']})</h3>"
             
             for nazione in sorted(raggruppamento.keys()):
-                html_out += f"<div class='nation-group-title'>📍 {nazione}</div>"
+                # Rimossa l'emoji dal separatore per mantenere lo stile minimal in scala di grigi
+                html_out += f"<div class='nation-group-title'>{nazione}</div>"
                 ippodromi_ordinati = sorted(raggruppamento[nazione], key=lambda x: x['nome'])
                 for ippo in ippodromi_ordinati:
                     html_out += ippo['html']
