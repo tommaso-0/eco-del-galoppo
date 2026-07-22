@@ -8,10 +8,23 @@ from datetime import datetime, timedelta
 
 DATA_OGGI = datetime.now()
 STR_OGGI = DATA_OGGI.strftime("%d/%m/%Y")
-HTML_OUTPUT = "index.html" # Generiamo index.html per GitHub Pages
+HTML_OUTPUT = "index.html"
 
 # ==========================================
-# 1. IL CAVALLO DEL GIORNO (Invariato)
+# 0. CANE DA TARTUFO (Per i nomi ippodromi)
+# ==========================================
+def esplora_json(dizionario, chiavi_target):
+    for chiave, valore in dizionario.items():
+        if chiave.lower() in chiavi_target and isinstance(valore, str):
+            return valore
+    for chiave, valore in dizionario.items():
+        if isinstance(valore, dict):
+            risultato = esplora_json(valore, chiavi_target)
+            if risultato: return risultato
+    return None
+
+# ==========================================
+# 1. IL CAVALLO DEL GIORNO
 # ==========================================
 def recupera_cavallo_del_giorno():
     campione = {"nome": "ATTESA ARCHIVIO", "storia": "Carica il file memoir.txt su GitHub."}
@@ -29,7 +42,7 @@ def recupera_cavallo_del_giorno():
     return campione
 
 # ==========================================
-# 2. ROAD TO GLORY (Calendario Dinamico)
+# 2. ROAD TO GLORY
 # ==========================================
 def genera_calendario_g1():
     g1_database = [
@@ -84,6 +97,10 @@ def genera_calendario_g1():
 # ==========================================
 # 3. RASSEGNA STAMPA (Feed HTTP Puliti)
 # ==========================================
+def contiene_asiatico(testo):
+    """Filtro di sicurezza per bloccare le notizie con ideogrammi cinesi o giapponesi"""
+    return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
+
 def recupera_notizie():
     fonti = [
         {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/"},
@@ -98,11 +115,17 @@ def recupera_notizie():
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
         try:
             feed = feedparser.parse(f['rss'])
-            entries = feed.entries[:3]
-            if entries:
-                for entry in entries:
-                    html_news += f"<li><a href='{entry.link}' target='_blank'>{entry.title}</a></li>"
-            else:
+            notizie_valide = 0
+            for entry in feed.entries:
+                if notizie_valide >= 3: break
+                
+                # Se il titolo contiene ideogrammi, saltiamo alla prossima notizia
+                if contiene_asiatico(entry.title): continue
+                    
+                html_news += f"<li><a href='{entry.link}' target='_blank'>{entry.title}</a></li>"
+                notizie_valide += 1
+                
+            if notizie_valide == 0:
                 html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
         except Exception:
             html_news += "<li><i>Feed temporaneamente non disponibile.</i></li>"
@@ -112,31 +135,30 @@ def recupera_notizie():
     return html_news
 
 # ==========================================
-# 4. PALINSESTO PALINSESTI (API SENZA BROWSER)
+# 4. PALINSESTO PALINSESTI (ORDINATO PER NAZIONE)
 # ==========================================
 def identifica_nazione(meeting, races):
-    # Estrazione codice nativo
     c_code = str(meeting.get('country', meeting.get('country_code', ''))).upper()
     
-    if c_code in ['FRA', 'FR']: return "FRANCIA", "FRA"
-    if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO / IRLANDA", "UK/IRE"
-    if c_code in ['US', 'USA']: return "STATI UNITI", "USA"
-    if c_code in ['JP', 'JPN']: return "GIAPPONE", "JPN"
-    if c_code in ['HK', 'HKG']: return "HONG KONG", "HKG"
-    if c_code in ['RSA', 'ZA', 'SAF']: return "SUDAFRICA", "RSA"
+    if c_code in ['FRA', 'FR']: return "FRANCIA"
+    if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO / IRLANDA"
+    if c_code in ['US', 'USA']: return "STATI UNITI"
+    if c_code in ['JP', 'JPN']: return "GIAPPONE"
+    if c_code in ['HK', 'HKG']: return "HONG KONG"
+    if c_code in ['RSA', 'ZA', 'SAF']: return "SUDAFRICA"
+    if c_code in ['AUS', 'NZ']: return "AUSTRALIA / NZ"
     
-    # Analisi indizi testuali se la nazione è N/D
     testo_corse = " ".join([r.get('race_name', r.get('name', '')) for r in races]).upper()
     nome_ippodromo = str(meeting.get('name', meeting.get('course_name', ''))).upper()
     
     parole_francesi = ['PRIX', 'ATTELE', 'HURDLE', 'HAUTE', 'CHOISY', 'MEDOC', 'CHAROLAIS', 'CHALLENGE']
     if any(p in testo_corse for p in parole_francesi) or any(p in nome_ippodromo for p in ['VICHY', 'ENGHIEN', 'DEAUVILLE', 'AUTEUIL', 'CAGNES']):
-        return "FRANCIA", "FRA"
+        return "FRANCIA"
         
     if any(p in testo_corse for p in ['CLAIMING', 'ALLOWANCE', 'MAIDEN SPECIAL']):
-        return "STATI UNITI", "USA"
+        return "STATI UNITI"
         
-    return "INTERNAZIONALE", "INT"
+    return c_code if c_code and c_code != 'NONE' else "INTERNAZIONALE"
 
 def recupera_palinsesto_globale():
     date_query = [
@@ -156,20 +178,24 @@ def recupera_palinsesto_globale():
             meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
             if not meetings: continue
             
-            html_out += f"<h3 class='day-header'>PALINSESTO {dq['lbl']} ({dq['val']})</h3>"
+            # Creiamo il cassetto per le nazioni
+            raggruppamento = {}
             
             for m in meetings:
                 races = m.get('races', [])
                 if not races: continue
                 
-                nome_ipp = m.get('course_name', m.get('name', 'IPPODROMO'))
-                nome_nazione, badge_naz = identifica_nazione(m, races)
+                # Sguinzagliamo il cane da tartufo per il nome
+                nome_ipp = esplora_json(m, ['name', 'course_name', 'meeting_name', 'venue']) or "IPPODROMO"
+                if nome_ipp == "IPPODROMO" and m.get('races'):
+                    nome_ipp = esplora_json(m['races'][0], ['course_name', 'track', 'name']) or nome_ipp
+                    
+                nome_nazione = identifica_nazione(m, races)
                 
-                html_out += f"""
+                ippo_html = f"""
                 <details class='ippo-accordion'>
                     <summary class='ippo-summary'>
                         <span>{nome_ipp.upper()}</span>
-                        <span class='nation-tag'>{nome_nazione}</span>
                     </summary>
                     <div class='ippo-content'>
                 """
@@ -180,8 +206,8 @@ def recupera_palinsesto_globale():
                     dist = r.get('distance', '')
                     race_id = r.get('race_summary_reference', {}).get('id')
                     
-                    dist_html = f" | Distanza: {dist}" if dist else ""
-                    html_out += f"<div class='race-title'><b>{ora}</b> — {titolo_c} <small>{dist_html}</small></div>"
+                    dist_html = f" | Dist: {dist}" if dist else ""
+                    ippo_html += f"<div class='race-title'><b>{ora}</b> — {titolo_c} <small>{dist_html}</small></div>"
                     
                     if race_id:
                         try:
@@ -189,17 +215,32 @@ def recupera_palinsesto_globale():
                             if r_res.status_code == 200:
                                 rides = r_res.json().get('rides', [])
                                 if rides:
-                                    html_out += "<table class='race-table'><thead><tr><th>N°</th><th>Cavallo</th><th>Fantino</th></tr></thead><tbody>"
+                                    ippo_html += "<table class='race-table'><thead><tr><th>N°</th><th>Cavallo</th><th>Fantino</th></tr></thead><tbody>"
                                     for p in rides:
                                         num = str(p.get('cloth_number', p.get('saddle_cloth_number', '-'))).zfill(2)
                                         cav = p.get('horse', {}).get('name', 'N/D').upper()
                                         fan = p.get('jockey', {}).get('name', 'N/D')
-                                        html_out += f"<tr><td class='num-col'>{num}</td><td class='horse-col'>{cav}</td><td class='jockey-col'>{fan}</td></tr>"
-                                    html_out += "</tbody></table>"
+                                        ippo_html += f"<tr><td class='num-col'>{num}</td><td class='horse-col'>{cav}</td><td class='jockey-col'>{fan}</td></tr>"
+                                    ippo_html += "</tbody></table>"
                         except Exception:
-                            html_out += "<p class='err-txt'>Dettagli partenti non disponibili.</p>"
+                            ippo_html += "<p class='err-txt'>Dettagli partenti non disponibili.</p>"
                             
-                html_out += "</div></details>"
+                ippo_html += "</div></details>"
+                
+                # Inseriamo l'HTML dell'ippodromo nel cassetto della sua nazione
+                if nome_nazione not in raggruppamento:
+                    raggruppamento[nome_nazione] = []
+                raggruppamento[nome_nazione].append({"nome": nome_ipp.upper(), "html": ippo_html})
+
+            # Costruiamo il blocco HTML finale ordinando nazioni e ippodromi
+            html_out += f"<h3 class='day-header'>PALINSESTO {dq['lbl']} ({dq['val']})</h3>"
+            
+            for nazione in sorted(raggruppamento.keys()):
+                html_out += f"<div class='nation-group-title'>📍 {nazione}</div>"
+                ippodromi_ordinati = sorted(raggruppamento[nazione], key=lambda x: x['nome'])
+                for ippo in ippodromi_ordinati:
+                    html_out += ippo['html']
+                    
         except Exception as e:
             html_out += f"<p class='err-txt'>Errore caricamento palinsesto {dq['lbl']}: {e}</p>"
             
@@ -222,7 +263,7 @@ def genera_sito():
     <title>L'Eco del Galoppo</title>
     <style>
         :root {{
-            --bg-color: #f7f7f7;
+            --bg-color: #e9e9e9;
             --card-bg: #ffffff;
             --text-main: #111111;
             --text-muted: #555555;
@@ -394,32 +435,34 @@ def genera_sito():
         .day-header {{
             font-family: 'Courier New', monospace;
             font-size: 14px;
-            background: #eee;
+            background: #222;
+            color: #fff;
             padding: 6px 10px;
-            border: 1px solid #ccc;
-            margin-top: 20px;
+            border: 1px solid #000;
+            margin-top: 25px;
+        }}
+        .nation-group-title {{
+            font-family: 'Courier New', monospace;
+            font-size: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            background: #e6e6e6;
+            padding: 6px 10px;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            border-left: 4px solid #000;
         }}
         .ippo-accordion {{
             border: 1px solid var(--border-light);
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             background: #fff;
         }}
         .ippo-summary {{
             padding: 10px 15px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             background: #fafafa;
-        }}
-        .nation-tag {{
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            font-weight: normal;
-            border: 1px solid #888;
-            padding: 1px 6px;
         }}
         .ippo-content {{
             padding: 15px;
@@ -431,6 +474,7 @@ def genera_sito():
             margin-bottom: 5px;
             border-bottom: 1px dashed #ccc;
             padding-bottom: 3px;
+            color: #111;
         }}
         .race-table {{
             width: 100%;
@@ -444,10 +488,12 @@ def genera_sito():
             border-bottom: 1px solid #000;
             padding: 4px;
             background: #f0f0f0;
+            color: #000;
         }}
         .race-table td {{
             border-bottom: 1px solid #eee;
             padding: 4px;
+            color: #222;
         }}
         .num-col {{ width: 35px; font-weight: bold; }}
         .horse-col {{ font-weight: bold; }}
@@ -474,7 +520,7 @@ def genera_sito():
         <div class="section-title">Rassegna Stampa Internazionale</div>
         {notizie}
         
-        <div class="section-title">Palinsesto e Partenti</div>
+        <div class="section-title">Palinsesto Globale e Partenti</div>
         {palinsesto}
     </div>
 </body>
