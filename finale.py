@@ -95,10 +95,15 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Infallibile a 3 Livelli)
+# 3. RASSEGNA STAMPA (Infiltrazione a 4 Strati)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
+
+class Notizia:
+    def __init__(self, title, link):
+        self.title = title
+        self.link = link
 
 def recupera_notizie():
     fonti = [
@@ -112,74 +117,68 @@ def recupera_notizie():
     html_news = "<div class='news-grid'>"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        "Accept": "application/rss+xml, application/xml, text/xml, */*"
     }
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
+        entries = []
         
-        try:
-            entries = []
-            
-            # LIVELLO 1: Connessione RSS Diretta
+        # TENTATIVO 1: Ingresso Principale (Diretto)
+        if not entries:
             try:
                 res = requests.get(f['rss'], headers=headers, timeout=5)
-                feed = feedparser.parse(res.content)
-                if res.status_code == 200 and len(feed.entries) > 0:
-                    entries = feed.entries
+                if res.status_code == 200:
+                    feed = feedparser.parse(res.content)
+                    if feed.entries: entries = [Notizia(e.title, e.link) for e in feed.entries]
             except: pass
-                
-            # LIVELLO 2: Proxy AllOrigins (Maschera l'IP di GitHub)
-            if not entries:
-                try:
-                    proxy_url = f"https://api.allorigins.win/get?url={f['rss']}"
-                    res_proxy = requests.get(proxy_url, timeout=5)
-                    if res_proxy.status_code == 200:
-                        content = res_proxy.json().get('contents', '')
-                        feed = feedparser.parse(content)
-                        if len(feed.entries) > 0:
-                            entries = feed.entries
-                except: pass
             
-            # LIVELLO 3: Forza Bruta HTML (Raschia la Homepage)
-            if not entries:
-                try:
-                    res_html = requests.get(f['url'], headers=headers, timeout=5)
-                    soup = BeautifulSoup(res_html.text, 'html.parser')
-                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read more", "leggi tutto", "terms", "policy", "redazione", "chi siamo", "contact", "about", "advertisement"]
-                    
-                    for a_tag in soup.find_all('a', href=True):
-                        testo = a_tag.get_text(strip=True)
-                        # Filtriamo i link veri: testo lungo, no caratteri strani, no parole fuffa
-                        if len(testo) > 35 and not any(ord(c) > 12000 for c in testo):
-                            if not any(parola in testo.lower() for parola in fuffa):
-                                link = a_tag['href']
-                                if not link.startswith('http'):
-                                    link = f['url'] + link if link.startswith('/') else f"{f['url']}/{link}"
-                                
-                                # Evitiamo doppioni
-                                if not any(e.title == testo for e in entries):
-                                    class OggettoNotizia: pass
-                                    e = OggettoNotizia()
-                                    e.title = testo
-                                    e.link = link
-                                    entries.append(e)
-                except: pass
+        # TENTATIVO 2: Il Passpartout (RSS2JSON)
+        if not entries:
+            try:
+                res_json = requests.get(f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}", timeout=5).json()
+                if res_json.get('status') == 'ok':
+                    entries = [Notizia(i.get('title', ''), i.get('link', '')) for i in res_json.get('items', [])]
+            except: pass
+            
+        # TENTATIVO 3: La porta sul retro (AllOrigins)
+        if not entries:
+            try:
+                proxy_url = f"https://api.allorigins.win/get?url={f['rss']}"
+                res_proxy = requests.get(proxy_url, timeout=5).json()
+                if 'contents' in res_proxy:
+                    feed = feedparser.parse(res_proxy['contents'])
+                    if feed.entries: entries = [Notizia(e.title, e.link) for e in feed.entries]
+            except: pass
+        
+        # TENTATIVO 4: Forza Bruta (Scraping HTML della Homepage)
+        if not entries:
+            try:
+                res_html = requests.get(f['url'], headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+                soup = BeautifulSoup(res_html.text, 'html.parser')
+                fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read", "terms", "policy", "redazione", "chi siamo", "contact", "about", "advertisement", "author"]
+                
+                for a_tag in soup.find_all('a', href=True):
+                    testo = a_tag.get_text(strip=True)
+                    if len(testo) > 35 and not any(ord(c) > 12000 for c in testo):
+                        if not any(parola in testo.lower() for parola in fuffa):
+                            link = a_tag['href']
+                            if not link.startswith('http'): link = f['url'] + link if link.startswith('/') else f"{f['url']}/{link}"
+                            if not any(e.title == testo for e in entries):
+                                entries.append(Notizia(testo, link))
+            except: pass
 
-            # STAMPA RISULTATI
-            notizie_valide = 0
-            for entry in entries:
-                if notizie_valide >= 3: break
-                if contiene_asiatico(entry.title): continue
-                    
-                html_news += f"<li><a href='{entry.link}' target='_blank'>{entry.title}</a></li>"
-                notizie_valide += 1
+        # ================= STAMPA A VIDEO =================
+        notizie_valide = 0
+        for entry in entries:
+            if notizie_valide >= 3: break
+            if contiene_asiatico(entry.title): continue
                 
-            if notizie_valide == 0:
-                html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
-                
-        except Exception:
-            html_news += "<li><i>Feed temporaneamente non disponibile.</i></li>"
+            html_news += f"<li><a href='{entry.link}' target='_blank'>{entry.title}</a></li>"
+            notizie_valide += 1
+            
+        if notizie_valide == 0:
+            html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
             
         html_news += "</ul></div>"
         
