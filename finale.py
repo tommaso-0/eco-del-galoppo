@@ -95,7 +95,7 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Bypassa Cloudflare con Proxy)
+# 3. RASSEGNA STAMPA (Infallibile)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
@@ -110,23 +110,43 @@ def recupera_notizie():
     ]
     
     html_news = "<div class='news-grid'>"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
+        
         try:
-            # 1. Tentativo di estrazione diretta
-            res = requests.get(f['rss'], headers=headers, timeout=10)
-            feed = feedparser.parse(res.content)
+            entries = []
+            direct_failed = False
             
-            # 2. Scudo Cloudflare intercettato (GitHub bloccato)? Usiamo un proxy fantasma!
-            if len(feed.entries) == 0 or res.status_code in [403, 401, 406]:
-                proxy_url = f"https://api.allorigins.win/raw?url={f['rss']}"
-                res_proxy = requests.get(proxy_url, headers=headers, timeout=10)
-                feed = feedparser.parse(res_proxy.content)
+            try:
+                # 1. Timeout cortissimo: se il server ci tiene in sospeso, tagliamo subito (max 5 sec)
+                res = requests.get(f['rss'], headers=headers, timeout=5)
+                feed = feedparser.parse(res.content)
+                if res.status_code != 200 or len(feed.entries) == 0:
+                    direct_failed = True
+                else:
+                    entries = feed.entries
+            except Exception:
+                direct_failed = True
                 
+            # 2. PIANO B: Incursione tramite API RSS2JSON (Aggira i blocchi Anti-Bot)
+            if direct_failed:
+                api_url = f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}"
+                res_proxy = requests.get(api_url, timeout=5)
+                dati_json = res_proxy.json()
+                
+                if dati_json.get('status') == 'ok':
+                    for item in dati_json.get('items', []):
+                        class DummyEntry: pass
+                        e = DummyEntry()
+                        e.title = item.get('title', '')
+                        e.link = item.get('link', '')
+                        entries.append(e)
+
+            # 3. Estrazione e Stampa
             notizie_valide = 0
-            for entry in feed.entries:
+            for entry in entries:
                 if notizie_valide >= 3: break
                 if contiene_asiatico(entry.title): continue
                     
@@ -135,8 +155,10 @@ def recupera_notizie():
                 
             if notizie_valide == 0:
                 html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
+                
         except Exception:
             html_news += "<li><i>Feed temporaneamente non disponibile.</i></li>"
+            
         html_news += "</ul></div>"
         
     html_news += "</div>"
