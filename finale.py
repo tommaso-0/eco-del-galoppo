@@ -5,6 +5,7 @@ import random
 import os
 import re
 from datetime import datetime, timedelta
+import calendar
 
 DATA_OGGI = datetime.now()
 STR_OGGI = DATA_OGGI.strftime("%d/%m/%Y")
@@ -38,52 +39,75 @@ def recupera_cavallo_del_giorno():
                 nome_c, storia_c = scelta.split("|", 1)
                 campione = {"nome": nome_c.strip(), "storia": storia_c.strip()}
     except Exception as e:
-        print(f"Errore caricamento memoir: {e}")
+        pass
     return campione
 
 # ==========================================
-# 2. ROAD TO GLORY
+# 2. ROAD TO GLORY (MOTORE PERPETUO ESPANSO)
 # ==========================================
+def calcola_data_corsa(anno, mese, giorno_settimana, n_occorrenza):
+    calendario_mese = calendar.monthcalendar(anno, mese)
+    giorni_validi = [settimana[giorno_settimana] for settimana in calendario_mese if settimana[giorno_settimana] != 0]
+    giorno_esatto = giorni_validi[-1] if n_occorrenza == -1 else giorni_validi[n_occorrenza - 1]
+    return datetime(anno, mese, giorno_esatto, 12, 0)
+
 def genera_calendario_g1():
-    g1_database = [
-        {"nome": "Sussex Stakes (UK)", "data": "29/07/2026"},
-        {"nome": "Prix Jacques le Marois (FRA)", "data": "16/08/2026"},
-        {"nome": "Juddmonte International (UK)", "data": "19/08/2026"},
-        {"nome": "Irish Champion Stakes (IRE)", "data": "12/09/2026"},
-        {"nome": "Sprinters Stakes (JPN)", "data": "04/10/2026"},
-        {"nome": "Prix de l'Arc de Triomphe (FRA)", "data": "04/10/2026"},
-        {"nome": "Champion Stakes (UK)", "data": "17/10/2026"},
-        {"nome": "Shuka Sho (JPN)", "data": "18/10/2026"},
-        {"nome": "Premio Jockey Club (ITA)", "data": "18/10/2026"},
-        {"nome": "Cox Plate (AUS)", "data": "24/10/2026"},
-        {"nome": "Kikuka Sho - St. Leger (JPN)", "data": "25/10/2026"},
-        {"nome": "Tenno Sho Autumn (JPN)", "data": "01/11/2026"},
-        {"nome": "Melbourne Cup (AUS)", "data": "03/11/2026"},
-        {"nome": "Breeders' Cup Classic (USA)", "data": "07/11/2026"},
-        {"nome": "Premio Roma (ITA)", "data": "08/11/2026"},
-        {"nome": "Japan Cup (JPN)", "data": "29/11/2026"},
-        {"nome": "Hong Kong Cup (HK)", "data": "13/12/2026"},
-        {"nome": "Arima Kinen (JPN)", "data": "27/12/2026"},
-        {"nome": "Saudi Cup (KSA)", "data": "20/02/2027"},
-        {"nome": "Dubai World Cup (UAE)", "data": "27/03/2027"},
-        {"nome": "Kentucky Derby (USA)", "data": "01/05/2027"},
-        {"nome": "Derby Italiano (ITA)", "data": "23/05/2027"},
-        {"nome": "Epsom Derby (UK)", "data": "05/06/2027"},
-        {"nome": "Prix du Jockey Club (FRA)", "data": "06/06/2027"}
+    anno_corrente = DATA_OGGI.year
+    
+    # REGOLE STORICHE: 0=Lun, 1=Mar, 2=Mer, 3=Gio, 4=Ven, 5=Sab, 6=Dom
+    regole_corse = [
+        # REGNO UNITO E IRLANDA
+        {"nome": "King George VI (Ascot - UK)", "mese": 7, "giorno": 5, "occ": 4},
+        {"nome": "Epsom Derby (Epsom - UK)", "mese": 6, "giorno": 5, "occ": 1},
+        {"nome": "Juddmonte Int. (York - UK)", "mese": 8, "giorno": 2, "occ": 3},
+        
+        # FRANCIA
+        {"nome": "Prix de l'Arc de Triomphe (FRA)", "mese": 10, "giorno": 6, "occ": 1},
+        {"nome": "Prix du Jockey Club (FRA)", "mese": 6, "giorno": 6, "occ": 1},
+        {"nome": "Prix Jacques le Marois (FRA)", "mese": 8, "giorno": 6, "occ": 2},
+        
+        # USA
+        {"nome": "Kentucky Derby (USA)", "mese": 5, "giorno": 5, "occ": 1},
+        {"nome": "Breeders' Cup Classic (USA)", "mese": 11, "giorno": 5, "occ": 1},
+        {"nome": "Pegasus World Cup (USA)", "mese": 1, "giorno": 5, "occ": -1},
+        
+        # ASIA (HONG KONG E GIAPPONE)
+        {"nome": "Hong Kong Cup (Sha Tin - HK)", "mese": 12, "giorno": 6, "occ": 2},
+        {"nome": "Hong Kong Derby (Sha Tin - HK)", "mese": 3, "giorno": 6, "occ": 3},
+        {"nome": "Japan Cup (Tokyo - JPN)", "mese": 11, "giorno": 6, "occ": -1},
+        {"nome": "Arima Kinen (Nakayama - JPN)", "mese": 12, "giorno": 6, "occ": -1},
+        
+        # MEDIO ORIENTE
+        {"nome": "Dubai World Cup (Meydan - UAE)", "mese": 3, "giorno": 5, "occ": -1},
+        {"nome": "Saudi Cup (Riyadh - KSA)", "mese": 2, "giorno": 5, "occ": -1},
+        
+        # AUSTRALIA
+        {"nome": "Melbourne Cup (Flemington - AUS)", "mese": 11, "giorno": 1, "occ": 1}, # 1° Martedì
+        {"nome": "Cox Plate (Moonee Valley - AUS)", "mese": 10, "giorno": 5, "occ": -1},
+        
+        # ITALIA
+        {"nome": "Derby Italiano (Capannelle - ITA)", "mese": 5, "giorno": 6, "occ": 3},
+        {"nome": "Premio Jockey Club (San Siro - ITA)", "mese": 10, "giorno": 6, "occ": 3},
     ]
     
     prossime = []
-    for corsa in g1_database:
-        d = datetime.strptime(corsa["data"], "%d/%m/%Y")
-        if d >= DATA_OGGI - timedelta(days=1):
-            giorni = (d - DATA_OGGI).days
-            prossime.append((corsa["nome"], corsa["data"], giorni))
+    for corsa in regole_corse:
+        data_corsa = calcola_data_corsa(anno_corrente, corsa["mese"], corsa["giorno"], corsa["occ"])
+        giorni_mancanti = (data_corsa.date() - DATA_OGGI.date()).days
+        
+        # Passata all'anno successivo in automatico
+        if giorni_mancanti < -2:
+            data_corsa = calcola_data_corsa(anno_corrente + 1, corsa["mese"], corsa["giorno"], corsa["occ"])
+            giorni_mancanti = (data_corsa.date() - DATA_OGGI.date()).days
             
+        prossime.append((corsa["nome"], data_corsa.strftime("%d/%m/%Y"), giorni_mancanti))
+        
     prossime.sort(key=lambda x: x[2])
     
     html = "<div class='rtg-container'>"
     for c in prossime[:6]:
-        lbl = f"TRA {c[2]} GIORNI" if c[2] > 0 else "OGGI!"
+        lbl = f"TRA {c[2]} GIORNI" if c[2] > 0 else "OGGI/DOMANI!"
+        if c[2] < 0: lbl = "APPENA CORSA"
         html += f"""
         <div class='rtg-box'>
             <span class='rtg-badge'>{lbl}</span>
@@ -95,40 +119,64 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Bypass Assoluto via Google News)
+# 3. RASSEGNA STAMPA (SISTEMA IBRIDO)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
 
+class NotiziaFake:
+    pass
+
 def recupera_notizie():
-    # Usiamo il motore di ricerca RSS di Google News. Non parliamo più con i server bersaglio.
-    # Il parametro when:7d garantisce che peschiamo solo notizie degli ultimi 7 giorni.
     fonti = [
-        {"nome": "ITALIAN POST RACING", "rss": "https://news.google.com/rss/search?q=site:italianpostracing.it+when:7d&hl=it&gl=IT&ceid=IT:it"},
-        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://news.google.com/rss/search?q=site:thoroughbreddailynews.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
-        {"nome": "ASIAN RACING REPORT", "rss": "https://news.google.com/rss/search?q=site:asianracingreport.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
-        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
-        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en"}
+        # SITI "AMICI": feed diretti originali
+        {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/", "tipo": "diretto"},
+        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://www.thoroughbreddailynews.com/feed/", "tipo": "diretto"},
+        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/", "tipo": "diretto"},
+        # SITI BLINDATI: usiamo il travestimento di Google News
+        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
+        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"}
     ]
     
     html_news = "<div class='news-grid'>"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
+        entries = []
         
         try:
-            # Chiediamo i dati a Google, che risponde sempre e subito
-            res = requests.get(f['rss'], headers=headers, timeout=5)
-            feed = feedparser.parse(res.content)
-            
+            if f["tipo"] == "diretto":
+                # Tentativo 1: Direttamente al sito
+                try:
+                    res = requests.get(f['rss'], headers=headers, timeout=5)
+                    feed = feedparser.parse(res.content)
+                    if feed.entries: entries = feed.entries
+                except: pass
+                
+                # Tentativo 2 (Paracadute): API di RSS2JSON per eludere i blocchi
+                if not entries:
+                    try:
+                        res_json = requests.get(f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}", timeout=5).json()
+                        if res_json.get('status') == 'ok':
+                            for item in res_json.get('items', []):
+                                e = NotiziaFake()
+                                e.title = item.get('title', '')
+                                e.link = item.get('link', '')
+                                entries.append(e)
+                    except: pass
+            else:
+                # Usa il Ponte Google
+                res = requests.get(f['rss'], headers=headers, timeout=5)
+                feed = feedparser.parse(res.content)
+                if feed.entries: entries = feed.entries
+                
             notizie_valide = 0
-            for entry in feed.entries:
+            for entry in entries:
                 if notizie_valide >= 3: break
                 
-                # Pulizia Titolo: Google aggiunge sempre " - NomeSito" alla fine. Lo tagliamo.
                 titolo_pulito = entry.title
-                if " - " in titolo_pulito:
+                if f["tipo"] == "google" and " - " in titolo_pulito:
                     titolo_pulito = titolo_pulito.rsplit(" - ", 1)[0]
                     
                 if contiene_asiatico(titolo_pulito): continue
@@ -139,8 +187,8 @@ def recupera_notizie():
             if notizie_valide == 0:
                 html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
                 
-        except Exception as e:
-            html_news += f"<li><i>Feed temporaneamente non disponibile.</i></li>"
+        except Exception:
+            html_news += "<li><i>Feed temporaneamente non disponibile.</i></li>"
             
         html_news += "</ul></div>"
         
@@ -540,11 +588,4 @@ def genera_sito():
         {palinsesto}
     </div>
 </body>
-</html>"""
-
-    with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
-        f.write(html_final)
-    print("Stampa de 'L'Eco del Galoppo' completata con successo.")
-
-if __name__ == "__main__":
-    genera_sito()
+</html>
