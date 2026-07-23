@@ -95,94 +95,52 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Corazza Pesante + Googlebot)
+# 3. RASSEGNA STAMPA (Bypass Assoluto via Google News)
 # ==========================================
 def contiene_asiatico(testo):
     return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
 
-class Notizia:
-    def __init__(self, title, link):
-        self.title = title
-        self.link = link
-
 def recupera_notizie():
+    # Usiamo il motore di ricerca RSS di Google News. Non parliamo più con i server bersaglio.
+    # Il parametro when:7d garantisce che peschiamo solo notizie degli ultimi 7 giorni.
     fonti = [
-        {"nome": "ITALIAN POST RACING", "url": "https://www.italianpostracing.it", "rss": "https://www.italianpostracing.it/feed/"},
-        {"nome": "THOROUGHBRED DAILY NEWS", "url": "https://www.thoroughbreddailynews.com", "rss": "https://www.thoroughbreddailynews.com/feed/"},
-        {"nome": "ASIAN RACING REPORT", "url": "https://asianracingreport.com", "rss": "https://asianracingreport.com/feed/"},
-        {"nome": "BLOODHORSE (USA)", "url": "https://www.bloodhorse.com", "rss": "https://www.bloodhorse.com/rss/news"},
-        {"nome": "PAULICK REPORT", "url": "https://paulickreport.com", "rss": "https://paulickreport.com/feed/"}
+        {"nome": "ITALIAN POST RACING", "rss": "https://news.google.com/rss/search?q=site:italianpostracing.it+when:7d&hl=it&gl=IT&ceid=IT:it"},
+        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://news.google.com/rss/search?q=site:thoroughbreddailynews.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
+        {"nome": "ASIAN RACING REPORT", "rss": "https://news.google.com/rss/search?q=site:asianracingreport.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
+        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
+        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en"}
     ]
     
     html_news = "<div class='news-grid'>"
-    
-    # Travestimento da Bot di Google
-    headers_fantasma = {
-        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-        "Accept": "*/*"
-    }
-    
-    # Carosello dei Tunnel
-    tunnel_list = [
-        "", # Ingresso diretto
-        "https://api.codetabs.com/v1/proxy?quest=", # Tunnel 1
-        "https://api.allorigins.win/raw?url=" # Tunnel 2
-    ]
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
-        entries = []
         
-        # FASE 1: Scansione Feed RSS con Carosello Proxy
-        for tunnel in tunnel_list:
-            if entries: break
-            try:
-                url_bersaglio = tunnel + f['rss'] if tunnel else f['rss']
-                res = requests.get(url_bersaglio, headers=headers_fantasma, timeout=5)
-                if res.status_code == 200:
-                    feed = feedparser.parse(res.content)
-                    if feed.entries: entries = [Notizia(e.title, e.link) for e in feed.entries]
-            except: pass
+        try:
+            # Chiediamo i dati a Google, che risponde sempre e subito
+            res = requests.get(f['rss'], headers=headers, timeout=5)
+            feed = feedparser.parse(res.content)
             
-        # FASE 2: Api Esterna (Passpartout JSON)
-        if not entries:
-            try:
-                res_json = requests.get(f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}", timeout=5).json()
-                if res_json.get('status') == 'ok':
-                    entries = [Notizia(i.get('title', ''), i.get('link', '')) for i in res_json.get('items', [])]
-            except: pass
-        
-        # FASE 3: Raschiamento HTML Estremo (Forza Bruta + Carosello Proxy)
-        if not entries:
-            for tunnel in tunnel_list:
-                if entries: break
-                try:
-                    url_bersaglio = tunnel + f['url'] if tunnel else f['url']
-                    res_html = requests.get(url_bersaglio, headers=headers_fantasma, timeout=5)
-                    soup = BeautifulSoup(res_html.text, 'html.parser')
-                    fuffa = ["menu", "search", "cookie", "privacy", "accedi", "abbonati", "login", "subscribe", "newsletter", "read", "terms", "policy", "redazione", "chi", "contact", "about", "advertisement", "author"]
-                    
-                    for a_tag in soup.find_all('a', href=True):
-                        testo = a_tag.get_text(strip=True)
-                        if len(testo) > 35 and not any(ord(c) > 12000 for c in testo):
-                            if not any(parola in testo.lower() for parola in fuffa):
-                                link = a_tag['href']
-                                if not link.startswith('http'): link = f['url'] + link if link.startswith('/') else f"{f['url']}/{link}"
-                                if not any(e.title == testo for e in entries):
-                                    entries.append(Notizia(testo, link))
-                except: pass
-
-        # STAMPA RISULTATI
-        notizie_valide = 0
-        for entry in entries:
-            if notizie_valide >= 3: break
-            if contiene_asiatico(entry.title): continue
+            notizie_valide = 0
+            for entry in feed.entries:
+                if notizie_valide >= 3: break
                 
-            html_news += f"<li><a href='{entry.link}' target='_blank'>{entry.title}</a></li>"
-            notizie_valide += 1
-            
-        if notizie_valide == 0:
-            html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
+                # Pulizia Titolo: Google aggiunge sempre " - NomeSito" alla fine. Lo tagliamo.
+                titolo_pulito = entry.title
+                if " - " in titolo_pulito:
+                    titolo_pulito = titolo_pulito.rsplit(" - ", 1)[0]
+                    
+                if contiene_asiatico(titolo_pulito): continue
+                    
+                html_news += f"<li><a href='{entry.link}' target='_blank'>{titolo_pulito}</a></li>"
+                notizie_valide += 1
+                
+            if notizie_valide == 0:
+                html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
+                
+        except Exception as e:
+            html_news += f"<li><i>Feed temporaneamente non disponibile.</i></li>"
             
         html_news += "</ul></div>"
         
