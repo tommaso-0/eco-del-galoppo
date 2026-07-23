@@ -2,9 +2,7 @@ name: La Vedetta del Galoppo
 
 on:
   schedule:
-    # Esegue il controllo ogni mattina alle 08:00 UTC (le 10:00 in Italia)
     - cron: '0 8 * * *'
-  # Il workflow_dispatch aggiunge un pulsante magico su GitHub per avviarlo a mano quando vuoi!
   workflow_dispatch: 
 
 jobs:
@@ -18,11 +16,11 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.11'
 
     - name: Installa le dipendenze
       run: |
-        pip install requests google-generativeai
+        pip install requests google-genai
 
     - name: Lancia la Vedetta
       env:
