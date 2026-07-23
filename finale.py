@@ -5,22 +5,35 @@ import random
 import os
 import re
 from datetime import datetime, timedelta
+import calendar
 
+# Date Globali
 DATA_OGGI = datetime.now()
 STR_OGGI = DATA_OGGI.strftime("%d/%m/%Y")
 HTML_OUTPUT = "index.html"
 
 # ==========================================
+# CLASSE NOTIZIA (Struttura Anti-Crash)
+# ==========================================
+class OggettoNotizia:
+    def __init__(self, title, link):
+        self.title = str(title)
+        self.link = str(link)
+
+# ==========================================
 # 0. CANE DA TARTUFO
 # ==========================================
 def esplora_json(dizionario, chiavi_target):
-    for chiave, valore in dizionario.items():
-        if chiave.lower() in chiavi_target and isinstance(valore, str):
-            return valore
-    for chiave, valore in dizionario.items():
-        if isinstance(valore, dict):
-            risultato = esplora_json(valore, chiavi_target)
-            if risultato: return risultato
+    try:
+        for chiave, valore in dizionario.items():
+            if chiave.lower() in chiavi_target and isinstance(valore, str):
+                return valore
+        for chiave, valore in dizionario.items():
+            if isinstance(valore, dict):
+                risultato = esplora_json(valore, chiavi_target)
+                if risultato: return risultato
+    except:
+        pass
     return None
 
 # ==========================================
@@ -37,110 +50,165 @@ def recupera_cavallo_del_giorno():
                 scelta = random.choice(linee)
                 nome_c, storia_c = scelta.split("|", 1)
                 campione = {"nome": nome_c.strip(), "storia": storia_c.strip()}
-    except Exception as e:
-        print(f"Errore caricamento memoir: {e}")
+    except Exception:
+        pass
     return campione
 
 # ==========================================
-# 2. ROAD TO GLORY
+# 2. ROAD TO GLORY (CALENDARIO PERPETUO BLINDATO)
 # ==========================================
+def calcola_data_corsa(anno, mese, giorno_settimana, n_occorrenza):
+    try:
+        calendario_mese = calendar.monthcalendar(anno, mese)
+        giorni_validi = [settimana[giorno_settimana] for settimana in calendario_mese if settimana[giorno_settimana] != 0]
+        # Previeni errori di indice
+        if not giorni_validi: return DATA_OGGI
+        giorno_esatto = giorni_validi[-1] if n_occorrenza == -1 else giorni_validi[n_occorrenza - 1]
+        return datetime(anno, mese, giorno_esatto, 12, 0)
+    except Exception:
+        return DATA_OGGI # Paracadute in caso di errore matematico
+
 def genera_calendario_g1():
-    g1_database = [
-        {"nome": "Sussex Stakes (UK)", "data": "29/07/2026"},
-        {"nome": "Prix Jacques le Marois (FRA)", "data": "16/08/2026"},
-        {"nome": "Juddmonte International (UK)", "data": "19/08/2026"},
-        {"nome": "Irish Champion Stakes (IRE)", "data": "12/09/2026"},
-        {"nome": "Sprinters Stakes (JPN)", "data": "04/10/2026"},
-        {"nome": "Prix de l'Arc de Triomphe (FRA)", "data": "04/10/2026"},
-        {"nome": "Champion Stakes (UK)", "data": "17/10/2026"},
-        {"nome": "Shuka Sho (JPN)", "data": "18/10/2026"},
-        {"nome": "Premio Jockey Club (ITA)", "data": "18/10/2026"},
-        {"nome": "Cox Plate (AUS)", "data": "24/10/2026"},
-        {"nome": "Kikuka Sho - St. Leger (JPN)", "data": "25/10/2026"},
-        {"nome": "Tenno Sho Autumn (JPN)", "data": "01/11/2026"},
-        {"nome": "Melbourne Cup (AUS)", "data": "03/11/2026"},
-        {"nome": "Breeders' Cup Classic (USA)", "data": "07/11/2026"},
-        {"nome": "Premio Roma (ITA)", "data": "08/11/2026"},
-        {"nome": "Japan Cup (JPN)", "data": "29/11/2026"},
-        {"nome": "Hong Kong Cup (HK)", "data": "13/12/2026"},
-        {"nome": "Arima Kinen (JPN)", "data": "27/12/2026"},
-        {"nome": "Saudi Cup (KSA)", "data": "20/02/2027"},
-        {"nome": "Dubai World Cup (UAE)", "data": "27/03/2027"},
-        {"nome": "Kentucky Derby (USA)", "data": "01/05/2027"},
-        {"nome": "Derby Italiano (ITA)", "data": "23/05/2027"},
-        {"nome": "Epsom Derby (UK)", "data": "05/06/2027"},
-        {"nome": "Prix du Jockey Club (FRA)", "data": "06/06/2027"}
-    ]
-    
-    prossime = []
-    for corsa in g1_database:
-        d = datetime.strptime(corsa["data"], "%d/%m/%Y")
-        if d >= DATA_OGGI - timedelta(days=1):
-            giorni = (d - DATA_OGGI).days
-            prossime.append((corsa["nome"], corsa["data"], giorni))
-            
-    prossime.sort(key=lambda x: x[2])
-    
     html = "<div class='rtg-container'>"
-    for c in prossime[:6]:
-        lbl = f"TRA {c[2]} GIORNI" if c[2] > 0 else "OGGI!"
-        html += f"""
-        <div class='rtg-box'>
-            <span class='rtg-badge'>{lbl}</span>
-            <div class='rtg-title'>{c[0]}</div>
-            <div class='rtg-date'>{c[1]}</div>
-        </div>
-        """
+    try:
+        anno_corrente = DATA_OGGI.year
+        
+        # 0=Lun, 1=Mar, 2=Mer, 3=Gio, 4=Ven, 5=Sab, 6=Dom
+        regole_corse = [
+            # REGNO UNITO E IRLANDA
+            {"nome": "King George VI (Ascot - UK)", "mese": 7, "giorno": 5, "occ": 4},
+            {"nome": "Epsom Derby (Epsom - UK)", "mese": 6, "giorno": 5, "occ": 1},
+            {"nome": "Juddmonte Int. (York - UK)", "mese": 8, "giorno": 2, "occ": 3},
+            
+            # FRANCIA
+            {"nome": "Prix de l'Arc de Triomphe (FRA)", "mese": 10, "giorno": 6, "occ": 1},
+            {"nome": "Prix du Jockey Club (FRA)", "mese": 6, "giorno": 6, "occ": 1},
+            {"nome": "Prix Jacques le Marois (FRA)", "mese": 8, "giorno": 6, "occ": 2},
+            
+            # USA
+            {"nome": "Kentucky Derby (USA)", "mese": 5, "giorno": 5, "occ": 1},
+            {"nome": "Breeders' Cup Classic (USA)", "mese": 11, "giorno": 5, "occ": 1},
+            {"nome": "Pegasus World Cup (USA)", "mese": 1, "giorno": 5, "occ": -1},
+            
+            # ASIA (HONG KONG E GIAPPONE)
+            {"nome": "Hong Kong Cup (Sha Tin - HK)", "mese": 12, "giorno": 6, "occ": 2},
+            {"nome": "Hong Kong Derby (Sha Tin - HK)", "mese": 3, "giorno": 6, "occ": 3},
+            {"nome": "Japan Cup (Tokyo - JPN)", "mese": 11, "giorno": 6, "occ": -1},
+            {"nome": "Arima Kinen (Nakayama - JPN)", "mese": 12, "giorno": 6, "occ": -1},
+            
+            # MEDIO ORIENTE E AUSTRALIA
+            {"nome": "Dubai World Cup (Meydan - UAE)", "mese": 3, "giorno": 5, "occ": -1},
+            {"nome": "Saudi Cup (Riyadh - KSA)", "mese": 2, "giorno": 5, "occ": -1},
+            {"nome": "Melbourne Cup (Flemington - AUS)", "mese": 11, "giorno": 1, "occ": 1},
+            {"nome": "Cox Plate (Moonee Valley - AUS)", "mese": 10, "giorno": 5, "occ": -1},
+            
+            # ITALIA
+            {"nome": "Derby Italiano (Capannelle - ITA)", "mese": 5, "giorno": 6, "occ": 3},
+            {"nome": "Premio Jockey Club (San Siro - ITA)", "mese": 10, "giorno": 6, "occ": 3},
+        ]
+        
+        prossime = []
+        for corsa in regole_corse:
+            data_corsa = calcola_data_corsa(anno_corrente, corsa["mese"], corsa["giorno"], corsa["occ"])
+            giorni_mancanti = (data_corsa.date() - DATA_OGGI.date()).days
+            
+            if giorni_mancanti < -2:
+                data_corsa = calcola_data_corsa(anno_corrente + 1, corsa["mese"], corsa["giorno"], corsa["occ"])
+                giorni_mancanti = (data_corsa.date() - DATA_OGGI.date()).days
+                
+            prossime.append((corsa["nome"], data_corsa.strftime("%d/%m/%Y"), giorni_mancanti))
+            
+        prossime.sort(key=lambda x: x[2])
+        
+        for c in prossime[:6]:
+            lbl = f"TRA {c[2]} GIORNI" if c[2] > 0 else "OGGI/DOMANI!"
+            if c[2] < 0: lbl = "APPENA CORSA"
+            html += f"""
+            <div class='rtg-box'>
+                <span class='rtg-badge'>{lbl}</span>
+                <div class='rtg-title'>{c[0]}</div>
+                <div class='rtg-date'>{c[1]}</div>
+            </div>
+            """
+    except Exception as e:
+        html += f"<p>Errore Calcolo Calendario: {e}</p>"
+        
     html += "</div>"
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (Bypass Assoluto via Google News)
+# 3. RASSEGNA STAMPA (SISTEMA IBRIDO)
 # ==========================================
 def contiene_asiatico(testo):
-    return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', testo))
+    try:
+        return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', str(testo)))
+    except:
+        return False
 
 def recupera_notizie():
-    # Usiamo il motore di ricerca RSS di Google News. Non parliamo più con i server bersaglio.
-    # Il parametro when:7d garantisce che peschiamo solo notizie degli ultimi 7 giorni.
     fonti = [
-        {"nome": "ITALIAN POST RACING", "rss": "https://news.google.com/rss/search?q=site:italianpostracing.it+when:7d&hl=it&gl=IT&ceid=IT:it"},
-        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://news.google.com/rss/search?q=site:thoroughbreddailynews.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
-        {"nome": "ASIAN RACING REPORT", "rss": "https://news.google.com/rss/search?q=site:asianracingreport.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
-        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en"},
-        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en"}
+        {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/", "tipo": "diretto"},
+        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://www.thoroughbreddailynews.com/feed/", "tipo": "diretto"},
+        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/", "tipo": "diretto"},
+        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
+        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"}
     ]
     
     html_news = "<div class='news-grid'>"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     for f in fonti:
         html_news += f"<div class='news-block'><div class='news-source'>{f['nome']}</div><ul>"
+        entries_finali = []
         
         try:
-            # Chiediamo i dati a Google, che risponde sempre e subito
-            res = requests.get(f['rss'], headers=headers, timeout=5)
-            feed = feedparser.parse(res.content)
-            
+            if f["tipo"] == "diretto":
+                # Tentativo 1
+                try:
+                    res = requests.get(f['rss'], headers=headers, timeout=5)
+                    feed = feedparser.parse(res.content)
+                    if hasattr(feed, 'entries') and feed.entries:
+                        entries_finali = [OggettoNotizia(e.title, e.link) for e in feed.entries if hasattr(e, 'title') and hasattr(e, 'link')]
+                except: pass
+                
+                # Tentativo 2: API
+                if not entries_finali:
+                    try:
+                        res_json = requests.get(f"https://api.rss2json.com/v1/api.json?rss_url={f['rss']}", timeout=5).json()
+                        if isinstance(res_json, dict) and res_json.get('status') == 'ok':
+                            for item in res_json.get('items', []):
+                                if isinstance(item, dict):
+                                    entries_finali.append(OggettoNotizia(item.get('title', ''), item.get('link', '#')))
+                    except: pass
+            else:
+                # Ponte Google News
+                try:
+                    res = requests.get(f['rss'], headers=headers, timeout=5)
+                    feed = feedparser.parse(res.content)
+                    if hasattr(feed, 'entries') and feed.entries:
+                        entries_finali = [OggettoNotizia(e.title, e.link) for e in feed.entries if hasattr(e, 'title') and hasattr(e, 'link')]
+                except: pass
+                
+            # Stampa
             notizie_valide = 0
-            for entry in feed.entries:
+            for entry in entries_finali:
                 if notizie_valide >= 3: break
                 
-                # Pulizia Titolo: Google aggiunge sempre " - NomeSito" alla fine. Lo tagliamo.
-                titolo_pulito = entry.title
-                if " - " in titolo_pulito:
+                titolo_pulito = getattr(entry, 'title', 'Senza Titolo')
+                if f["tipo"] == "google" and " - " in titolo_pulito:
                     titolo_pulito = titolo_pulito.rsplit(" - ", 1)[0]
                     
                 if contiene_asiatico(titolo_pulito): continue
                     
-                html_news += f"<li><a href='{entry.link}' target='_blank'>{titolo_pulito}</a></li>"
+                link_sicuro = getattr(entry, 'link', '#')
+                html_news += f"<li><a href='{link_sicuro}' target='_blank'>{titolo_pulito}</a></li>"
                 notizie_valide += 1
                 
             if notizie_valide == 0:
                 html_news += "<li><i>Nessun aggiornamento recente.</i></li>"
                 
-        except Exception as e:
-            html_news += f"<li><i>Feed temporaneamente non disponibile.</i></li>"
+        except Exception:
+            html_news += "<li><i>Feed temporaneamente non disponibile.</i></li>"
             
         html_news += "</ul></div>"
         
@@ -151,34 +219,37 @@ def recupera_notizie():
 # 4. PALINSESTO PALINSESTI
 # ==========================================
 def identifica_nazione(meeting, races):
-    c_code = str(meeting.get('country', meeting.get('country_code', ''))).upper()
-    
-    if c_code in ['FRA', 'FR']: return "FRANCIA"
-    if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO E IRLANDA"
-    if c_code in ['US', 'USA']: return "STATI UNITI"
-    if c_code in ['JP', 'JPN']: return "GIAPPONE"
-    if c_code in ['HK', 'HKG']: return "HONG KONG"
-    if c_code in ['RSA', 'ZA', 'SAF']: return "SUDAFRICA"
-    if c_code in ['AUS', 'NZ']: return "AUSTRALIA E NUOVA ZELANDA"
-    
-    testo_corse = " ".join([r.get('race_name', r.get('name', '')) for r in races]).upper()
-    nome_ippodromo = str(meeting.get('name', meeting.get('course_name', ''))).upper()
-    
-    parole_francesi = ['PRIX', 'ATTELE', 'HURDLE', 'HAUTE', 'CHOISY', 'MEDOC', 'CHAROLAIS', 'CHALLENGE', 'AUTEUIL']
-    if any(p in testo_corse for p in parole_francesi) or any(p in nome_ippodromo for p in ['VICHY', 'ENGHIEN', 'DEAUVILLE', 'AUTEUIL', 'CAGNES']):
-        return "FRANCIA"
+    try:
+        c_code = str(meeting.get('country', meeting.get('country_code', ''))).upper()
         
-    if any(p in testo_corse for p in ['CLAIMING', 'ALLOWANCE', 'MAIDEN SPECIAL']):
-        return "STATI UNITI"
+        if c_code in ['FRA', 'FR']: return "FRANCIA"
+        if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO E IRLANDA"
+        if c_code in ['US', 'USA']: return "STATI UNITI"
+        if c_code in ['JP', 'JPN']: return "GIAPPONE"
+        if c_code in ['HK', 'HKG']: return "HONG KONG"
+        if c_code in ['RSA', 'ZA', 'SAF']: return "SUDAFRICA"
+        if c_code in ['AUS', 'NZ']: return "AUSTRALIA E NUOVA ZELANDA"
         
-    parole_uk = ['NURSERY', 'HANDICAP', 'STAKES', 'NOVICE', 'MAIDEN STAKES']
-    if any(p in testo_corse for p in parole_uk):
-        return "REGNO UNITO E IRLANDA"
+        testo_corse = " ".join([str(r.get('race_name', r.get('name', ''))) for r in races]).upper()
+        nome_ippodromo = str(meeting.get('name', meeting.get('course_name', ''))).upper()
         
-    if not c_code or c_code == 'NONE':
-        return "REGNO UNITO E IRLANDA"
-        
-    return c_code if c_code and c_code != 'NONE' else "INTERNAZIONALE"
+        parole_francesi = ['PRIX', 'ATTELE', 'HURDLE', 'HAUTE', 'CHOISY', 'MEDOC', 'CHAROLAIS', 'CHALLENGE', 'AUTEUIL']
+        if any(p in testo_corse for p in parole_francesi) or any(p in nome_ippodromo for p in ['VICHY', 'ENGHIEN', 'DEAUVILLE', 'AUTEUIL', 'CAGNES']):
+            return "FRANCIA"
+            
+        if any(p in testo_corse for p in ['CLAIMING', 'ALLOWANCE', 'MAIDEN SPECIAL']):
+            return "STATI UNITI"
+            
+        parole_uk = ['NURSERY', 'HANDICAP', 'STAKES', 'NOVICE', 'MAIDEN STAKES']
+        if any(p in testo_corse for p in parole_uk):
+            return "REGNO UNITO E IRLANDA"
+            
+        if not c_code or c_code == 'NONE':
+            return "REGNO UNITO E IRLANDA"
+            
+        return c_code if c_code and c_code != 'NONE' else "INTERNAZIONALE"
+    except Exception:
+        return "INTERNAZIONALE"
 
 def recupera_palinsesto_globale():
     date_query = [
@@ -195,34 +266,43 @@ def recupera_palinsesto_globale():
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code != 200: continue
             
-            meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
+            try:
+                meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
+            except:
+                continue
+                
             if not meetings: continue
             
             raggruppamento = {}
             
             for m in meetings:
+                if not isinstance(m, dict): continue
                 races = m.get('races', [])
-                if not races: continue
+                if not races or not isinstance(races, list): continue
                 
                 nome_ipp = esplora_json(m, ['name', 'course_name', 'meeting_name', 'venue']) or "IPPODROMO"
-                if nome_ipp == "IPPODROMO" and m.get('races'):
-                    nome_ipp = esplora_json(m['races'][0], ['course_name', 'track', 'name']) or nome_ipp
+                if nome_ipp == "IPPODROMO" and isinstance(races[0], dict):
+                    nome_ipp = esplora_json(races[0], ['course_name', 'track', 'name']) or nome_ipp
                     
                 nome_nazione = identifica_nazione(m, races)
                 
                 ippo_html = f"""
                 <details class='ippo-accordion'>
                     <summary class='ippo-summary'>
-                        <span>{nome_ipp.upper()}</span>
+                        <span>{str(nome_ipp).upper()}</span>
                     </summary>
                     <div class='ippo-content'>
                 """
                 
                 for r in races:
+                    if not isinstance(r, dict): continue
                     ora = r.get('time', 'N/D')
                     titolo_c = r.get('race_name', r.get('name', 'Corsa'))
                     dist = r.get('distance', '')
-                    race_id = r.get('race_summary_reference', {}).get('id')
+                    
+                    race_id = None
+                    if isinstance(r.get('race_summary_reference'), dict):
+                        race_id = r.get('race_summary_reference').get('id')
                     
                     dist_html = f" | Dist: {dist}" if dist else ""
                     ippo_html += f"<div class='race-title'><b>{ora}</b> — {titolo_c} <small>{dist_html}</small></div>"
@@ -232,12 +312,13 @@ def recupera_palinsesto_globale():
                             r_res = requests.get(f"https://www.sportinglife.com/api/horse-racing/race/{race_id}", headers=headers, timeout=5)
                             if r_res.status_code == 200:
                                 rides = r_res.json().get('rides', [])
-                                if rides:
+                                if rides and isinstance(rides, list):
                                     ippo_html += "<table class='race-table'><thead><tr><th>N°</th><th>Cavallo</th><th>Fantino</th></tr></thead><tbody>"
                                     for p in rides:
+                                        if not isinstance(p, dict): continue
                                         num = str(p.get('cloth_number', p.get('saddle_cloth_number', '-'))).zfill(2)
-                                        cav = p.get('horse', {}).get('name', 'N/D').upper()
-                                        fan = p.get('jockey', {}).get('name', 'N/D')
+                                        cav = p.get('horse', {}).get('name', 'N/D').upper() if isinstance(p.get('horse'), dict) else 'N/D'
+                                        fan = p.get('jockey', {}).get('name', 'N/D') if isinstance(p.get('jockey'), dict) else 'N/D'
                                         ippo_html += f"<tr><td class='num-col'>{num}</td><td class='horse-col'>{cav}</td><td class='jockey-col'>{fan}</td></tr>"
                                     ippo_html += "</tbody></table>"
                         except Exception:
@@ -247,7 +328,7 @@ def recupera_palinsesto_globale():
                 
                 if nome_nazione not in raggruppamento:
                     raggruppamento[nome_nazione] = []
-                raggruppamento[nome_nazione].append({"nome": nome_ipp.upper(), "html": ippo_html})
+                raggruppamento[nome_nazione].append({"nome": str(nome_ipp).upper(), "html": ippo_html})
 
             html_out += f"<h3 class='day-header'>PALINSESTO {dq['lbl']} ({dq['val']})</h3>"
             
@@ -258,7 +339,7 @@ def recupera_palinsesto_globale():
                     html_out += ippo['html']
                     
         except Exception as e:
-            html_out += f"<p class='err-txt'>Errore caricamento palinsesto {dq['lbl']}: {e}</p>"
+            html_out += f"<p class='err-txt'>Errore caricamento palinsesto {dq['lbl']}: Impossibile connettersi ai server.</p>"
             
     return html_out
 
@@ -266,12 +347,13 @@ def recupera_palinsesto_globale():
 # 5. GENERATORE HTML STILE GIORNALE MINIMAL
 # ==========================================
 def genera_sito():
-    cavallo = recupera_cavallo_del_giorno()
-    calendario = genera_calendario_g1()
-    notizie = recupera_notizie()
-    palinsesto = recupera_palinsesto_globale()
-    
-    html_final = f"""<!DOCTYPE html>
+    try:
+        cavallo = recupera_cavallo_del_giorno()
+        calendario = genera_calendario_g1()
+        notizie = recupera_notizie()
+        palinsesto = recupera_palinsesto_globale()
+        
+        html_final = f"""<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
@@ -542,9 +624,11 @@ def genera_sito():
 </body>
 </html>"""
 
-    with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
-        f.write(html_final)
-    print("Stampa de 'L'Eco del Galoppo' completata con successo.")
+        with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
+            f.write(html_final)
+        print("Stampa de 'L'Eco del Galoppo' completata con successo.")
+    except Exception as e:
+        print(f"ERRORE CRITICO DI SISTEMA: {e}")
 
 if __name__ == "__main__":
     genera_sito()
