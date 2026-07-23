@@ -1,15 +1,14 @@
 import os
 import requests
-import google.generativeai as genai
+from google import genai
 
 # 1. Recupera i segreti dalla cassaforte di GitHub
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# 2. Configura il modello IA (Gemini 1.5 Flash è velocissimo e gratuito)
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 2. Configura il nuovo client IA
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def manda_messaggio_telegram(testo):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -22,8 +21,7 @@ def manda_messaggio_telegram(testo):
     return risposta.status_code
 
 def main():
-    # Qui andrà il tuo codice di scraping di Sporting Life per trovare la corsa del giorno.
-    # Per ora simuliamo che la Vedetta abbia trovato un Gran Premio:
+    # === DATI FINTI PER IL TEST ===
     gara_importante_trovata = True
     nome_gara = "King George VI and Queen Elizabeth Stakes"
     orario = "16:40"
@@ -32,7 +30,7 @@ def main():
     if gara_importante_trovata:
         print("Gara G1 trovata! Chiedo all'Oracolo...")
         
-        # 3. Interroghiamo Gemini con un prompt da esperto
+        # 3. Interroghiamo Gemini con il nuovo comando
         prompt = f"""
         Sei un esperto opinionista di ippica (galoppo). Oggi si corre la {nome_gara} alle {orario}.
         I partenti principali sono: {partenti}.
@@ -40,7 +38,10 @@ def main():
         Evidenzia il favorito, un possibile outsider e usa un tono epico ma tecnico.
         """
 
-        risposta_gemini = model.generate_content(prompt)
+        risposta_gemini = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt,
+        )
         resoconto = risposta_gemini.text
 
         # 4. Assembliamo la grafica del messaggio per Telegram
@@ -58,7 +59,7 @@ def main():
         if status == 200:
             print("Bollettino consegnato con successo su Telegram!")
         else:
-            print("Errore nell'invio del messaggio.")
+            print(f"Errore nell'invio del messaggio su Telegram. Codice: {status}")
     else:
         print("Nessun Gran Premio oggi. La vedetta riposa.")
 
