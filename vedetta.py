@@ -123,6 +123,10 @@ def main():
     notizie = raccoglia_notizie_per_ia()
     palinsesto = raccoglia_palinsesto_per_ia()
 
+    # LIMITATORE DI GIRI: Tagliamo il palinsesto se supera i 15.000 caratteri
+    if len(palinsesto) > 15000:
+        palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO PER LIMITI DI SPAZIO...]"
+
     # Super-Prompt per Gemini 2.0 Flash
     prompt = f"""
     Sei un esperto opinionista e tipster di ippica (galoppo).
