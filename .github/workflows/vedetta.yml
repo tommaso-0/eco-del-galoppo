@@ -2,7 +2,10 @@ name: La Vedetta del Galoppo
 
 on:
   schedule:
-    - cron: '0 8 * * *'
+    # 05:14 UTC (7:14 italiane) -> Becca anche il Briefing e le gare asiatiche/mattutine
+    - cron: '14 5 * * *'
+    # 12:14 UTC (14:14 italiane) -> Controllo pomeridiano per le gare europee/UK
+    - cron: '14 12 * * *'
   workflow_dispatch: 
 
 jobs:
@@ -20,7 +23,7 @@ jobs:
 
     - name: Installa le dipendenze
       run: |
-        pip install requests google-genai
+        pip install requests google-genai undetected-chromedriver
 
     - name: Lancia la Vedetta
       env:
