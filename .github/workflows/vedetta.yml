@@ -2,33 +2,32 @@ name: La Vedetta del Galoppo
 
 on:
   schedule:
-    # 05:14 UTC (7:14 italiane) -> Becca anche il Briefing e le gare asiatiche/mattutine
-    - cron: '14 5 * * *'
-    # 12:14 UTC (14:14 italiane) -> Controllo pomeridiano per le gare europee/UK
-    - cron: '14 12 * * *'
+    # Esegue il bot tutti i giorni alle 07:00 UTC (circa le 08:00/09:00 in Italia)
+    - cron: '0 7 * * *'
+  # Permette di avviare il bot manualmente con il pulsante "Run workflow"
   workflow_dispatch: 
 
 jobs:
-  esplorazione:
+  lancia-vedetta:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
+      - name: Clona il repository
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Configura Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Installa le dipendenze
-      run: |
-        pip install requests groq undetected-chromedriver
-        pip install requests groq feedparser
+      - name: Installa le dipendenze
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests groq feedparser
 
-    - name: Lancia la Vedetta
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        GEMINI_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      run: python vedetta.py
+      - name: Lancia la Vedetta
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python vedetta.py
