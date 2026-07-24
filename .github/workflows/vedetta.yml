@@ -24,6 +24,7 @@ jobs:
     - name: Installa le dipendenze
       run: |
         pip install requests google-genai undetected-chromedriver
+        pip install requests google-genai feedparser
 
     - name: Lancia la Vedetta
       env:
