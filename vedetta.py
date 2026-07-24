@@ -149,7 +149,7 @@ def main():
 
     print("Chiedo il briefing all'Oracolo...")
     risposta_gemini = client.models.generate_content(
-        model='gemini-2.0-flash',
+        model='gemini-2.0-flash-lite',
         contents=prompt,
     )
     resoconto = risposta_gemini.text
