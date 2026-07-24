@@ -3,15 +3,15 @@ import requests
 import feedparser
 import re
 from datetime import datetime, timedelta
-from google import genai
+from groq import Groq
 
 # 1. Recupera i segreti dalla cassaforte di GitHub
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# 2. Configura il client IA
-client = genai.Client(api_key=GEMINI_API_KEY)
+# 2. Configura il client IA (Groq)
+client = Groq(api_key=GROQ_API_KEY)
 
 DATA_OGGI = datetime.now()
 
@@ -40,7 +40,7 @@ def contiene_asiatico(testo):
         return False
 
 # ==========================================
-# RACCOLTA DATI (Dal tuo giornale)
+# RACCOLTA DATI 
 # ==========================================
 def raccoglia_notizie_per_ia():
     fonti = [
@@ -70,7 +70,7 @@ def raccoglia_notizie_per_ia():
             
             valide = 0
             for entry in entries_finali:
-                if valide >= 2: break # Prendiamo le top 2 per fonte per non sovraccaricare il prompt
+                if valide >= 2: break 
                 titolo = getattr(entry, 'title', '')
                 if f["tipo"] == "google" and " - " in titolo:
                     titolo = titolo.rsplit(" - ", 1)[0]
@@ -123,13 +123,13 @@ def main():
     notizie = raccoglia_notizie_per_ia()
     palinsesto = raccoglia_palinsesto_per_ia()
 
-    # LIMITATORE DI GIRI: Tagliamo il palinsesto se supera i 15.000 caratteri
+    # LIMITATORE DI GIRI
     if len(palinsesto) > 15000:
         palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO PER LIMITI DI SPAZIO...]"
 
-    # Super-Prompt per Gemini 2.0 Flash
-    prompt = f"""
-    Sei un esperto opinionista e tipster di ippica (galoppo).
+    prompt_sistema = "Sei un esperto opinionista e tipster di ippica (galoppo). Sii conciso, tecnico, usa un tono epico ma diretto."
+    
+    prompt_utente = f"""
     Ti fornisco le notizie del giorno e il palinsesto odierno estratti dai feed ufficiali e da Sporting Life.
     
     NOTIZIE DEL GIORNO:
@@ -144,15 +144,21 @@ def main():
     2) 🏆 <b>Le Corse Imperdibili:</b> Segnala le 2 o 3 corse migliori o più importanti del palinsesto odierno.
     3) 🏇 <b>Da Tenere d'Occhio:</b> Estrai o suggerisci cavalli caldi o spunti tecnici interessanti in base ai dati forniti.
     
-    Sii conciso, tecnico, usa un tono epico ma diretto. Evita introduzioni o conclusioni superflue, parti subito con le sezioni.
+    Evita introduzioni o conclusioni superflue, parti subito con le sezioni.
     """
 
-    print("Chiedo il briefing all'Oracolo...")
-    risposta_gemini = client.models.generate_content(
-        model='gemini-2.0-flash-lite',
-        contents=prompt,
+    print("Chiedo il briefing all'Oracolo (Groq Llama 3.3)...")
+    
+    # Chiamata API aggiornata per Groq
+    risposta_groq = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": prompt_sistema},
+            {"role": "user", "content": prompt_utente}
+        ]
     )
-    resoconto = risposta_gemini.text
+    
+    resoconto = risposta_groq.choices[0].message.content
 
     messaggio = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{resoconto}"
 
