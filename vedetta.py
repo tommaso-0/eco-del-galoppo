@@ -100,7 +100,7 @@ def raccoglia_palinsesto_completo():
 # ==========================================
 # RACCOLTA DATI (SOLO CORSE IMMINENTI + PARTENTI)
 # ==========================================
-def raccoglia_palinsesto_imminente(ore_finestra=3.5):
+def raccoglia_palinsesto_imminente(ore_finestra=3.1):
     oggi_str = DATA_OGGI.strftime('%Y-%m-%d')
     url = f"https://www.sportinglife.com/api/horse-racing/racing/racecards/{oggi_str}"
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
