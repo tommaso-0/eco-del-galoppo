@@ -2,7 +2,7 @@ import os
 import requests
 import feedparser
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from groq import Groq
 
 # 1. Recupera i segreti dalla cassaforte di GitHub
@@ -105,6 +105,120 @@ def raccoglia_palinsesto_per_ia():
     except:
         testo_palinsesto = "Palinsesto non disponibile al momento."
     
+    return testo_palinsesto
+
+def manda_messaggio_telegram(testo):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": CHAT_ID,
+        "text": testo,
+        "parse_mode": "HTML"
+    }
+    risposta = requests.post(url, json=payload)
+    return risposta.status_code
+
+def main():
+    ora_attuale_utc_obj = datetime.utcnow()
+    
+    # ==========================================
+    # MODALITÀ MATTINO: BRIEFING COMPLETO (PROMPT IN INGLESE)
+    # ==========================================
+    if ora_attuale_utc_obj.hour < 10:
+        print("È mattina: La Vedetta sta rastrellando notizie e palinsesto...")
+        notizie = raccoglia_notizie_per_ia()
+        palinsesto = raccoglia_palinsesto_per_ia()
+
+        if len(palinsesto) > 15000:
+            palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO...]"
+
+        prompt_sistema = "You are an expert international horse racing analyst and tipster. You are analytical, precise, and factual. You MUST write your final response entirely in Italian."
+        prompt_utente = f"""
+        I am providing you with today's horse racing news and the daily racecards extracted from official feeds.
+        
+        TODAY'S NEWS:
+        {notizie}
+        
+        TODAY'S RACECARDS:
+        {palinsesto}
+        
+        Write a "Briefing Mattutino" (Morning Briefing) formatted with basic HTML tags (<b>, <i>) for Telegram.
+        You MUST write the entire text in Italian.
+        
+        Follow this strict editorial style. Do NOT invent facts. Do NOT confuse race names with horse names.
+        
+        1) 📰 <b>Il punto della situazione:</b> Write a solid, factual paragraph summarizing the actual news provided above. Link the events together logically.
+        2) 🏆 <b>Le Corse Imperdibili:</b> Select 2 or 3 of the most important races from the racecards. Format as: <b>Ore [Time]</b> — <i>[Race Name]</i>. Provide a strictly technical and factual analysis of why these races are important today.
+        3) 🏇 <b>Da Tenere d'Occhio:</b> Extract 2 or 3 specific horses mentioned in the news. Explain EXACTLY WHY they are important based ONLY on the provided text. No generic hyperbole.
+        
+        Do not add any introductory or concluding remarks. Start immediately with the sections.
+        """
+
+        risposta_groq = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": prompt_sistema},
+                {"role": "user", "content": prompt_utente}
+            ]
+        )
+        
+        resoconto = risposta_groq.choices[0].message.content
+        messaggio = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{resoconto}"
+
+        status = manda_messaggio_telegram(messaggio)
+        if status == 200:
+            print("Briefing mattutino consegnato!")
+
+    # ==========================================
+    # MODALITÀ POMERIGGIO: RADAR G1 MINIMAL (PROMPT IN INGLESE)
+    # ==========================================
+    else:
+        print("Non è mattina. Attivazione RADAR G1 POMERIDIANO...")
+        palinsesto = raccoglia_palinsesto_per_ia()
+        
+        if len(palinsesto) > 12000:
+            palinsesto = palinsesto[:12000] + "\n\n[...PALINSESTO TRONCATO...]"
+            
+        prompt_radar_sistema = "You are an emergency horse racing radar. Your ONLY purpose is to scan the provided racecards for Group 1 (G1) races and extract their data. You are strictly factual. You MUST write your final response in Italian."
+        prompt_radar_utente = f"""
+        Here is today's horse racing schedule (racecards):
+        
+        {palinsesto}
+        
+        Search ONLY for Group 1 races (e.g., G1, Group 1, major international classics).
+        
+        RULES:
+        - If you do NOT find any Group 1 race in the schedule, you MUST reply ONLY with this exact word: NESSUN_ALLARME
+        - If you find a Group 1 race, write a message using EXACTLY AND ONLY this HTML format, copying the textual data directly from the racecard. Do NOT invent anything. Do NOT add any commentary.
+        
+        🚨 <b>ALLARME G1 IN PROGRAMMA OGGI</b> 🚨
+        📍 <b>Ippodromo:</b> [Racecourse Name]
+        ⏰ <b>Partenza:</b> Ore [Race Time from the schedule]
+        🏆 <b>Corsa:</b> [Race Name]
+        """
+
+        risposta_groq = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.0, # Temperatura 0 = Niente fantasia, solo fredda estrazione dati
+            messages=[
+                {"role": "system", "content": prompt_radar_sistema},
+                {"role": "user", "content": prompt_radar_utente}
+            ]
+        )
+        
+        alert = risposta_groq.choices[0].message.content.strip()
+        
+        if alert == "NESSUN_ALLARME" or "NESSUN_ALLARME" in alert:
+            print("Nessun G1 mondiale all'orizzonte. Silenzio radio mantenuto.")
+        else:
+            status = manda_messaggio_telegram(alert)
+            if status == 200:
+                print("🚨 ALLARME G1 CONSEGNATO SU TELEGRAM!")
+            else:
+                print(f"Errore nell'invio dell'allarme. Codice: {status}")
+
+if __name__ == "__main__":
+    main()
     return testo_palinsesto
 
 def manda_messaggio_telegram(testo):
