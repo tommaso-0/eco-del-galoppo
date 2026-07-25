@@ -119,21 +119,20 @@ def manda_messaggio_telegram(testo):
 
 def main():
     # Recupera l'ora attuale in fuso orario UTC
-    ora_attuale = datetime.utcnow().hour
+    ora_attuale_utc = datetime.utcnow()
     
-    # Esegue il blocco del briefing SOLO se è prima delle 10:00 UTC (mattina)
-    if ora_attuale < 10:
+    # ==========================================
+    # MODALITÀ MATTINO: BRIEFING COMPLETO
+    # ==========================================
+    if ora_attuale_utc.hour < 10:
         print("È mattina: La Vedetta sta rastrellando notizie e palinsesto...")
-        
         notizie = raccoglia_notizie_per_ia()
         palinsesto = raccoglia_palinsesto_per_ia()
 
-        # LIMITATORE DI GIRI
         if len(palinsesto) > 15000:
-            palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO PER LIMITI DI SPAZIO...]"
+            palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO...]"
 
         prompt_sistema = "Sei un esperto opinionista e tipster di ippica (galoppo). Sii conciso, tecnico, usa un tono epico ma diretto."
-        
         prompt_utente = f"""
         Ti fornisco le notizie del giorno e il palinsesto odierno estratti dai feed ufficiali e da Sporting Life.
         
@@ -146,16 +145,13 @@ def main():
         Scrivi un "Briefing Mattutino" formattato con tag HTML di base (<b>, <i>) per Telegram.
         Segui RIGOROSAMENTE questo nuovo stile editoriale d'autore:
         
-        1) 📰 <b>Il punto della situazione:</b> NON usare elenchi puntati o trattini. Scrivi un unico blocco narrativo (testo continuo d'autore) bello corposo e discorsivo. Collega gli eventi tra loro e spiega il contesto e le implicazioni delle notizie sul mondo del turf.
-        2) 🏆 <b>Le Corse Imperdibili:</b> Per ogni corsa, scrivi prima l'orario esatto di partenza in grassetto (es. <b>Ore 14:15</b> — <i>Nome Corsa</i>), seguito da un'analisi tecnica approfondita del perché è imperdibile (genealogia, posta in palio, qualità partenti).
-        3) 🏇 <b>Da Tenere d'Occhio:</b> Un approfondimento fluido sui cavalli in rampa di lancio e sui soggetti caldi per i grandi appuntamenti stagionali, mantenendo un taglio tecnico e incisivo.
+        1) 📰 <b>Il punto della situazione:</b> Un unico blocco narrativo epico sulle notizie principali.
+        2) 🏆 <b>Le Corse Imperdibili:</b> Per ogni corsa, orario esatto in grassetto e analisi tecnica profonda.
+        3) 🏇 <b>Da Tenere d'Occhio:</b> Spunti tecnici sui cavalli.
         
-        Evita introduzioni o conclusioni superflue, parti subito con il testo delle sezioni.
+        Niente introduzioni o conclusioni superflue.
         """
 
-        print("Chiedo il briefing all'Oracolo (Groq Llama 3.3)...")
-        
-        # Chiamata API aggiornata per Groq
         risposta_groq = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
@@ -165,18 +161,75 @@ def main():
         )
         
         resoconto = risposta_groq.choices[0].message.content
-
         messaggio = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{resoconto}"
 
         status = manda_messaggio_telegram(messaggio)
         if status == 200:
-            print("Briefing consegnato con successo su Telegram!")
-        else:
-            print(f"Errore nell'invio del messaggio. Codice: {status}")
-            
+            print("Briefing mattutino consegnato!")
+
+    # ==========================================
+    # MODALITÀ POMERIGGIO: RADAR G1 TELECRONISTA
+    # ==========================================
     else:
-        print("Non è mattina. Salto l'invio del Briefing Mattutino per evitare spam.")
-        # Spazio riservato: in futuro qui sotto metteremo il codice per gli allarmi G1 pomeridiani!
+        print("Non è mattina. Attivazione RADAR G1 POMERIDIANO...")
+        palinsesto = raccoglia_palinsesto_per_ia()
+        notizie = raccoglia_notizie_per_ia() # Aggiunto per far leggere i partenti all'IA
+        
+        # Calcola l'ora italiana (UTC + 2 per l'ora legale estiva)
+        ora_italiana = (ora_attuale_utc + timedelta(hours=2)).strftime('%H:%M')
+        
+        if len(palinsesto) > 12000:
+            palinsesto = palinsesto[:12000] + "\n\n[...PALINSESTO TRONCATO...]"
+        if len(notizie) > 5000:
+            notizie = notizie[:5000] + "\n\n[...NOTIZIE TRONCATE...]"
+            
+        prompt_radar_sistema = "Sei un sofisticato radar d'emergenza e un esaltante telecronista di ippica (galoppo internazionale)."
+        prompt_radar_utente = f"""
+        Ecco il palinsesto completo di oggi e le ultime notizie (da cui puoi dedurre i nomi dei cavalli partenti per i grandi eventi):
+        
+        NOTIZIE:
+        {notizie}
+        
+        PALINSESTO:
+        {palinsesto}
+        
+        ATTENZIONE: In Italia in questo momento sono le ore {ora_italiana}.
+        
+        Cerca SOLO E SOLTANTO corse di importanza planetaria (Group 1, grandi classiche mondiali) previste per il pomeriggio/sera.
+        
+        REGOLE D'INGAGGIO:
+        - Se NON trovi nessuna corsa di questo calibro, DEVI rispondere SOLO con questa parola esatta: NESSUN_ALLARME
+        - Se trovi un G1, suona l'allarme scrivendo un messaggio adrenalinico seguendo ESATTAMENTE questo formato HTML:
+        
+        🚨 <b>ALLARME G1 IMMINENTE: [NOME DELLA CORSA]</b> 🚨
+        
+        📍 <b>Ippodromo:</b> [Nome Ippodromo]
+        ⏰ <b>Partenza:</b> Ore [Orario della Corsa] <i>(Mancano circa [Calcola il tempo mancante rispetto alle ore {ora_italiana}]!)</i>
+        
+        🏇 <b>I Protagonisti:</b> [Elenca i cavalli principali e i favoriti che si sfideranno, deducendoli dalle notizie o dalla tua conoscenza dell'evento]
+        
+        🎙️ <b>La Telecronaca:</b> [Scrivi un commento di 3-4 righe in stile telecronista sportivo esaltato. Crea un'atmosfera epica, spiega la posta in palio e carica a mille l'attesa per l'apertura delle gabbie!]
+        """
+
+        risposta_groq = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0.2, # Basso per tenerlo concentrato ed evitare che inventi corse
+            messages=[
+                {"role": "system", "content": prompt_radar_sistema},
+                {"role": "user", "content": prompt_radar_utente}
+            ]
+        )
+        
+        alert = risposta_groq.choices[0].message.content.strip()
+        
+        if alert == "NESSUN_ALLARME" or "NESSUN_ALLARME" in alert:
+            print("Nessun G1 mondiale all'orizzonte. Silenzio radio mantenuto.")
+        else:
+            status = manda_messaggio_telegram(alert)
+            if status == 200:
+                print("🚨 ALLARME G1 CONSEGNATO SU TELEGRAM!")
+            else:
+                print(f"Errore nell'invio dell'allarme. Codice: {status}")
 
 if __name__ == "__main__":
     main()
