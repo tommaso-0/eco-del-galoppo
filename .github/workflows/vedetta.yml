@@ -1,10 +1,7 @@
 name: La Vedetta del Galoppo
 
 on:
-  schedule:
-    # Esegue il bot tutti i giorni alle 07:00 UTC (circa le 08:00/09:00 in Italia)
-    - cron: '0 7 * * *'
-  # Permette di avviare il bot manualmente con il pulsante "Run workflow"
+  # Permette di avviare il bot manualmente o tramite webhook esterni (come cron-job.org)
   workflow_dispatch: 
 
 jobs:
