@@ -137,7 +137,7 @@ def genera_calendario_g1():
     return html
 
 # ==========================================
-# 3. RASSEGNA STAMPA (SISTEMA IBRIDO)
+# 3. RASSEGNA STAMPA (SISTEMA IBRIDO CON SCUDO)
 # ==========================================
 def contiene_asiatico(testo):
     try:
@@ -189,7 +189,7 @@ def recupera_notizie():
                         entries_finali = [OggettoNotizia(e.title, e.link) for e in feed.entries if hasattr(e, 'title') and hasattr(e, 'link')]
                 except: pass
                 
-            # Stampa
+            # Stampa con scudo anti-ideogrammi
             notizie_valide = 0
             for entry in entries_finali:
                 if notizie_valide >= 3: break
@@ -198,6 +198,7 @@ def recupera_notizie():
                 if f["tipo"] == "google" and " - " in titolo_pulito:
                     titolo_pulito = titolo_pulito.rsplit(" - ", 1)[0]
                     
+                # Se il titolo contiene kanji o arabo, viene scartato!
                 if contiene_asiatico(titolo_pulito): continue
                     
                 link_sicuro = getattr(entry, 'link', '#')
@@ -216,23 +217,36 @@ def recupera_notizie():
     return html_news
 
 # ==========================================
-# 4. PALINSESTO PALINSESTI
+# 4. PALINSESTO PALINSESTI (CON AGGIUNTE MEDIORIENTALI E ASIATICHE)
 # ==========================================
 def identifica_nazione(meeting, races):
     try:
         c_code = str(meeting.get('country', meeting.get('country_code', ''))).upper()
         
+        # Le grandi piazze Europee e Americane
         if c_code in ['FRA', 'FR']: return "FRANCIA"
         if c_code in ['GB', 'UK', 'ENG', 'IRE', 'IRL']: return "REGNO UNITO E IRLANDA"
         if c_code in ['US', 'USA']: return "STATI UNITI"
+        if c_code in ['GER', 'DE']: return "GERMANIA"
+        if c_code in ['ITY', 'ITA', 'IT']: return "ITALIA"
+        
+        # Le grandi piazze Asiatiche e Mediorientali
         if c_code in ['JP', 'JPN']: return "GIAPPONE"
         if c_code in ['HK', 'HKG']: return "HONG KONG"
+        if c_code in ['UAE', 'AE']: return "EMIRATI ARABI UNITI (DUBAI)"
+        if c_code in ['KSA', 'SA']: return "ARABIA SAUDITA"
+        if c_code in ['BHR', 'BH']: return "BAHREIN"
+        if c_code in ['QAT', 'QA']: return "QATAR"
+        if c_code in ['MAC', 'MO']: return "MACAO"
+        
+        # Emisfero Sud
         if c_code in ['RSA', 'ZA', 'SAF']: return "SUDAFRICA"
         if c_code in ['AUS', 'NZ']: return "AUSTRALIA E NUOVA ZELANDA"
         
         testo_corse = " ".join([str(r.get('race_name', r.get('name', ''))) for r in races]).upper()
         nome_ippodromo = str(meeting.get('name', meeting.get('course_name', ''))).upper()
         
+        # Rilevamento d'emergenza
         parole_francesi = ['PRIX', 'ATTELE', 'HURDLE', 'HAUTE', 'CHOISY', 'MEDOC', 'CHAROLAIS', 'CHALLENGE', 'AUTEUIL']
         if any(p in testo_corse for p in parole_francesi) or any(p in nome_ippodromo for p in ['VICHY', 'ENGHIEN', 'DEAUVILLE', 'AUTEUIL', 'CAGNES']):
             return "FRANCIA"
