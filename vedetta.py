@@ -118,55 +118,65 @@ def manda_messaggio_telegram(testo):
     return risposta.status_code
 
 def main():
-    print("La Vedetta sta rastrellando notizie e palinsesto...")
+    # Recupera l'ora attuale in fuso orario UTC
+    ora_attuale = datetime.utcnow().hour
     
-    notizie = raccoglia_notizie_per_ia()
-    palinsesto = raccoglia_palinsesto_per_ia()
+    # Esegue il blocco del briefing SOLO se è prima delle 10:00 UTC (mattina)
+    if ora_attuale < 10:
+        print("È mattina: La Vedetta sta rastrellando notizie e palinsesto...")
+        
+        notizie = raccoglia_notizie_per_ia()
+        palinsesto = raccoglia_palinsesto_per_ia()
 
-    # LIMITATORE DI GIRI
-    if len(palinsesto) > 15000:
-        palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO PER LIMITI DI SPAZIO...]"
+        # LIMITATORE DI GIRI
+        if len(palinsesto) > 15000:
+            palinsesto = palinsesto[:15000] + "\n\n[...PALINSESTO TRONCATO PER LIMITI DI SPAZIO...]"
 
-    prompt_sistema = "Sei un esperto opinionista e tipster di ippica (galoppo). Sii conciso, tecnico, usa un tono epico ma diretto."
-    
-    prompt_utente = f"""
-    Ti fornisco le notizie del giorno e il palinsesto odierno estratti dai feed ufficiali e da Sporting Life.
-    
-    NOTIZIE DEL GIORNO:
-    {notizie}
-    
-    PALINSESTO ODIERNO:
-    {palinsesto}
-    
-    Scrivi un "Briefing Mattutino" formattato con tag HTML di base (<b>, <i>) per Telegram.
-    Crea esattamente queste 3 sezioni:
-    1) 📰 <b>Le News:</b> Sintesi delle notizie più calde (max 3 punti chiave).
-    2) 🏆 <b>Le Corse Imperdibili:</b> Segnala le 2 o 3 corse migliori o più importanti del palinsesto odierno.
-    3) 🏇 <b>Da Tenere d'Occhio:</b> Estrai o suggerisci cavalli caldi o spunti tecnici interessanti in base ai dati forniti.
-    
-    Evita introduzioni o conclusioni superflue, parti subito con le sezioni.
-    """
+        prompt_sistema = "Sei un esperto opinionista e tipster di ippica (galoppo). Sii conciso, tecnico, usa un tono epico ma diretto."
+        
+        prompt_utente = f"""
+        Ti fornisco le notizie del giorno e il palinsesto odierno estratti dai feed ufficiali e da Sporting Life.
+        
+        NOTIZIE DEL GIORNO:
+        {notizie}
+        
+        PALINSESTO ODIERNO:
+        {palinsesto}
+        
+        Scrivi un "Briefing Mattutino" formattato con tag HTML di base (<b>, <i>) per Telegram.
+        Segui RIGOROSAMENTE questo nuovo stile editoriale d'autore:
+        
+        1) 📰 <b>Il punto della situazione:</b> NON usare elenchi puntati o trattini. Scrivi un unico blocco narrativo (testo continuo d'autore) bello corposo e discorsivo. Collega gli eventi tra loro e spiega il contesto e le implicazioni delle notizie sul mondo del turf.
+        2) 🏆 <b>Le Corse Imperdibili:</b> Per ogni corsa, scrivi prima l'orario esatto di partenza in grassetto (es. <b>Ore 14:15</b> — <i>Nome Corsa</i>), seguito da un'analisi tecnica approfondita del perché è imperdibile (genealogia, posta in palio, qualità partenti).
+        3) 🏇 <b>Da Tenere d'Occhio:</b> Un approfondimento fluido sui cavalli in rampa di lancio e sui soggetti caldi per i grandi appuntamenti stagionali, mantenendo un taglio tecnico e incisivo.
+        
+        Evita introduzioni o conclusioni superflue, parti subito con il testo delle sezioni.
+        """
 
-    print("Chiedo il briefing all'Oracolo (Groq Llama 3.3)...")
-    
-    # Chiamata API aggiornata per Groq
-    risposta_groq = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": prompt_sistema},
-            {"role": "user", "content": prompt_utente}
-        ]
-    )
-    
-    resoconto = risposta_groq.choices[0].message.content
+        print("Chiedo il briefing all'Oracolo (Groq Llama 3.3)...")
+        
+        # Chiamata API aggiornata per Groq
+        risposta_groq = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": prompt_sistema},
+                {"role": "user", "content": prompt_utente}
+            ]
+        )
+        
+        resoconto = risposta_groq.choices[0].message.content
 
-    messaggio = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{resoconto}"
+        messaggio = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{resoconto}"
 
-    status = manda_messaggio_telegram(messaggio)
-    if status == 200:
-        print("Briefing consegnato con successo su Telegram!")
+        status = manda_messaggio_telegram(messaggio)
+        if status == 200:
+            print("Briefing consegnato con successo su Telegram!")
+        else:
+            print(f"Errore nell'invio del messaggio. Codice: {status}")
+            
     else:
-        print(f"Errore nell'invio del messaggio. Codice: {status}")
+        print("Non è mattina. Salto l'invio del Briefing Mattutino per evitare spam.")
+        # Spazio riservato: in futuro qui sotto metteremo il codice per gli allarmi G1 pomeridiani!
 
 if __name__ == "__main__":
     main()
