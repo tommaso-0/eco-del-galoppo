@@ -1,8 +1,7 @@
 name: Stampa L'Eco del Galoppo
 
 on:
-  schedule:
-    - cron: '14 5 * * *'  # Ogni mattina alle 5:00 UTC
+  # Permette di avviare la stampa manualmente o tramite webhook esterni (come cron-job.org)
   workflow_dispatch:
 
 jobs:
