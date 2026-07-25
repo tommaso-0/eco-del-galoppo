@@ -119,12 +119,13 @@ def manda_messaggio_telegram(testo):
 
 def main():
     # Recupera l'ora attuale in fuso orario UTC
-    ora_attuale_utc = datetime.utcnow()
+    ora_attuale_utc_obj = datetime.utcnow()
+    ora_attuale_utc = ora_attuale_utc_obj.strftime('%H:%M')
     
     # ==========================================
     # MODALITÀ MATTINO: BRIEFING COMPLETO
     # ==========================================
-    if ora_attuale_utc.hour < 10:
+    if ora_attuale_utc_obj.hour < 10:
         print("È mattina: La Vedetta sta rastrellando notizie e palinsesto...")
         notizie = raccoglia_notizie_per_ia()
         palinsesto = raccoglia_palinsesto_per_ia()
@@ -173,10 +174,7 @@ def main():
     else:
         print("Non è mattina. Attivazione RADAR G1 POMERIDIANO...")
         palinsesto = raccoglia_palinsesto_per_ia()
-        notizie = raccoglia_notizie_per_ia() # Aggiunto per far leggere i partenti all'IA
-        
-        # Calcola l'ora italiana (UTC + 2 per l'ora legale estiva)
-        ora_italiana = (ora_attuale_utc + timedelta(hours=2)).strftime('%H:%M')
+        notizie = raccoglia_notizie_per_ia() 
         
         if len(palinsesto) > 12000:
             palinsesto = palinsesto[:12000] + "\n\n[...PALINSESTO TRONCATO...]"
@@ -185,7 +183,7 @@ def main():
             
         prompt_radar_sistema = "Sei un sofisticato radar d'emergenza e un esaltante telecronista di ippica (galoppo internazionale)."
         prompt_radar_utente = f"""
-        Ecco il palinsesto completo di oggi e le ultime notizie (da cui puoi dedurre i nomi dei cavalli partenti per i grandi eventi):
+        Ecco il palinsesto completo di oggi e le ultime notizie:
         
         NOTIZIE:
         {notizie}
@@ -193,27 +191,30 @@ def main():
         PALINSESTO:
         {palinsesto}
         
-        ATTENZIONE: In Italia in questo momento sono le ore {ora_italiana}.
+        ⏰ REGOLE TEMPORALI PER IL CALCOLO:
+        - In questo esatto momento sono le ore {ora_attuale_utc} (Orario Universale UTC).
+        - Tutti gli orari scritti nel PALINSESTO qui sopra sono normalizzati sul fuso orario del Regno Unito (UK Time).
+        - Usa questa informazione per calcolare automaticamente e in modo preciso quanto tempo manca all'apertura delle gabbie!
         
         Cerca SOLO E SOLTANTO corse di importanza planetaria (Group 1, grandi classiche mondiali) previste per il pomeriggio/sera.
         
         REGOLE D'INGAGGIO:
-        - Se NON trovi nessuna corsa di questo calibro, DEVI rispondere SOLO con questa parola esatta: NESSUN_ALLARME
+        - Se NON trovi nessun G1, rispondi SOLO con questa parola esatta: NESSUN_ALLARME
         - Se trovi un G1, suona l'allarme scrivendo un messaggio adrenalinico seguendo ESATTAMENTE questo formato HTML:
         
         🚨 <b>ALLARME G1 IMMINENTE: [NOME DELLA CORSA]</b> 🚨
         
         📍 <b>Ippodromo:</b> [Nome Ippodromo]
-        ⏰ <b>Partenza:</b> Ore [Orario della Corsa] <i>(Mancano circa [Calcola il tempo mancante rispetto alle ore {ora_italiana}]!)</i>
+        ⏰ <b>Partenza:</b> Ore [Orario della Corsa del Palinsesto] <i>(Mancano circa [Scrivi il tempo mancante da ora]!)</i>
         
-        🏇 <b>I Protagonisti:</b> [Elenca i cavalli principali e i favoriti che si sfideranno, deducendoli dalle notizie o dalla tua conoscenza dell'evento]
+        🏇 <b>I Protagonisti:</b> [Elenca i cavalli principali e i favoriti che si sfideranno, deducendoli dalle notizie o dalla tua conoscenza]
         
-        🎙️ <b>La Telecronaca:</b> [Scrivi un commento di 3-4 righe in stile telecronista sportivo esaltato. Crea un'atmosfera epica, spiega la posta in palio e carica a mille l'attesa per l'apertura delle gabbie!]
+        🎙️ <b>La Telecronaca:</b> [Scrivi un commento epico in stile telecronista sportivo. Spiega la posta in palio e carica a mille l'attesa!]
         """
 
         risposta_groq = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            temperature=0.2, # Basso per tenerlo concentrato ed evitare che inventi corse
+            temperature=0.2, 
             messages=[
                 {"role": "system", "content": prompt_radar_sistema},
                 {"role": "user", "content": prompt_radar_utente}
