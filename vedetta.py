@@ -177,21 +177,27 @@ def main():
 
         if len(palinsesto) > 15000: palinsesto = palinsesto[:15000] + "\n[...]"
 
-        prompt_sistema = "You are an elite Oddsmaker and technical analyst for SNAI (Italy). You are strictly factual, analyzing form, tactics, distance, and class. You NEVER hallucinate names. You MUST write entirely in Italian."
+        prompt_sistema = """Sei il Capo Quotista (Senior Oddsmaker) per un importante bookmaker italiano. 
+        Il tuo compito è fornire analisi ippiche chirurgiche, ciniche e strettamente fattuali. 
+        Valuti forma recente, attitudine al tracciato/distanza, genealogia e schema di corsa. 
+        REGOLA D'ORO: Non allucinare mai nomi di cavalli o ippodromi inesistenti. Utilizza un lessico tecnico ippico italiano irreprensibile."""
+        
         prompt_utente = f"""
-        TODAY'S NEWS: {notizie}
-        TODAY'S SCHEDULE: {palinsesto}
+        NOTIZIE ODIERNE: {notizie}
+        PALINSESTO ODIERNO: {palinsesto}
         
-        Write a "Briefing Mattutino" (Morning Briefing) formatted with HTML tags (<b>, <i>) for Telegram.
-        Write entirely in Italian using a professional, technical Oddsmaker tone (e.g., discussing distance suitability, recent Group performances, ground).
+        Redigi un "Briefing Mattutino" formattato con i tag HTML (<b>, <i>) supportati da Telegram.
+        Niente convenevoli, vai dritto al sodo con la massima competenza tecnica.
         
-        1) 📰 <b>Il punto della situazione:</b> A factual summary of the news provided.
-        2) 🏆 <b>Le Corse Imperdibili:</b> Select 2 major races from the schedule. Format: <b>Ore [Time]</b> — <i>[Race Name]</i>. Explain technically why they are important.
-        3) 🏇 <b>Da Tenere d'Occhio:</b> Extract 2-3 specific horses mentioned in the news. Write a technical profile for each (pedigree, preferred distance, recent form, running style), exactly like a SNAI Oddsmaker comment. Do NOT use hyperbole.
+        Struttura obbligatoria:
+        1) 📰 <b>Il punto della situazione:</b> Sintesi tecnica (max 3 righe) basata ESCLUSIVAMENTE sulle NOTIZIE ODIERNE fornite.
+        2) 🏆 <b>Le Corse Imperdibili:</b> Individua le 2 corse più prestigiose (es. Gruppi, Listed o Handicap Principali) dal PALINSESTO ODIERNO. 
+           Formato per ognuna: <b>Ore [Orario]</b> — <i>[Nome Corsa]</i>. Aggiungi un rapido commento tecnico sul perché la corsa è rilevante.
+        3) 🏇 <b>Da Tenere d'Occhio:</b> Seleziona 2 cavalli menzionati nelle notizie. Scrivi per ciascuno una "perizia" da quotista (valutazione della chance, possibile quota, schema tattico, adattabilità).
         """
 
         risposta_groq = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             temperature=0.2,
             messages=[
                 {"role": "system", "content": prompt_sistema},
@@ -213,33 +219,36 @@ def main():
             print("Nessuna corsa rilevante nelle prossime ore.")
             return
 
-        prompt_radar_sistema = "You are an elite Oddsmaker for SNAI. You analyze upcoming horse races objectively. You must write entirely in Italian."
+        prompt_radar_sistema = """Sei un automa per il tracciamento di pattern ippici e quotista esperto. 
+        Il tuo unico scopo è analizzare un palinsesto imminente ed estrarre SOLAMENTE corse di massima categoria (Group 1 / Grade 1 / G1). 
+        Sei programmato per eseguire istruzioni condizionali con assoluta precisione, senza aggiungere testo extra o conversazionale."""
+        
         prompt_radar_utente = f"""
-        Here are the races starting in the NEXT 3 HOURS, including the exact confirmed runners [PARTENTI CONFERMATI: ...]:
+        Analizza le seguenti corse in partenza nelle prossime 3 ore (inclusi i partenti confermati):
         
         {palinsesto_imminente}
         
-        Search ONLY for Group 1 (G1, Grade 1) races.
+        ISTRUZIONE CONDIZIONALE RIGIDA:
+        - Se nella lista fornita NON E' PRESENTE esplicitamente una corsa classificabile come Gruppo 1 (G1, Grade 1), l'intero tuo output deve essere ESATTAMENTE e SOLO questa stringa: NESSUN_ALLARME
+        - Non aggiungere punti, spiegazioni o testo prima o dopo la stringa NESSUN_ALLARME.
         
-        RULES:
-        - If NO Group 1 races are in this specific list, reply ONLY with: NESSUN_ALLARME
-        - If you find a Group 1 race, create a technical alert formatted EXACTLY like this:
+        Se INVECE trovi una corsa di Gruppo 1, genera un'allerta tecnica formattata ESATTAMENTE così:
         
         🚨 <b>ALLARME G1 IN PARTENZA</b> 🚨
-        📍 <b>Ippodromo:</b> [Racecourse Name]
-        ⏰ <b>Partenza:</b> Ore [Time]
-        🏆 <b>Corsa:</b> [Race Name]
+        📍 <b>Ippodromo:</b> [Nome Ippodromo]
+        ⏰ <b>Partenza:</b> Ore [Orario]
+        🏆 <b>Corsa:</b> [Nome Corsa]
         
-        📝 <b>Commento Corsa:</b> [Write a SNAI-style technical overview: evaluate the race scheme, the absolute favorite, distance, and context]
+        📝 <b>Perizia Corsa:</b> [Commento da quotista SNAI: analisi dello schema, valutazione del terreno se noto, e contesto del Gruppo 1]
         
-        📊 <b>I Protagonisti:</b>
-        [For the top 3 or 4 horses from the PARTENTI CONFERMATI list, write a bullet point]
-        - <b>[Horse Name]:</b> [Write a technical Oddsmaker profile: assess its form, running style, recent G1 results, and chances today]
+        📊 <b>I Protagonisti Principali:</b>
+        [Seleziona solo i 3 cavalli più pericolosi dalla lista PARTENTI CONFERMATI]
+        - <b>[Nome Cavallo]:</b> [Valutazione tecnica sulle sue chance di vittoria, forma recente presunta e attitudine al rientro/distanza]
         """
 
         risposta_groq = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            temperature=0.2,
+            model="openai/gpt-oss-120b",
+            temperature=0.1,  # Temperatura abbassata per garantire maggiore aderenza formale al trigger NESSUN_ALLARME
             messages=[
                 {"role": "system", "content": prompt_radar_sistema},
                 {"role": "user", "content": prompt_radar_utente}
