@@ -100,7 +100,7 @@ def raccoglia_palinsesto_completo():
 # ==========================================
 # RACCOLTA DATI (SOLO CORSE IMMINENTI + PARTENTI)
 # ==========================================
-def raccoglia_palinsesto_imminente(ore_finestra=3.1):
+def raccoglia_palinsesto_imminente(ore_finestra=5.5):
     oggi_str = DATA_OGGI.strftime('%Y-%m-%d')
     url = f"https://www.sportinglife.com/api/horse-racing/racing/racecards/{oggi_str}"
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
@@ -129,7 +129,7 @@ def raccoglia_palinsesto_imminente(ore_finestra=3.1):
                         race_time = ora_attuale_uk.replace(hour=ore, minute=minuti, second=0)
                         diff_ore = (race_time - ora_attuale_uk).total_seconds() / 3600
                         
-                        # Filtro a finestra: solo corse che partono entro le prossime X ore
+                        # Filtro a finestra allargata a 5.5 ore
                         if 0 <= diff_ore <= ore_finestra:
                             corse_imminenti.append(r)
                     except:
@@ -168,8 +168,9 @@ def manda_messaggio_telegram(testo):
 
 def main():
     # ==========================================
-    # MODALITÀ MATTINO: BRIEFING (SNAI STYLE)
+    # 1. MODALITÀ MATTINO: BRIEFING (SNAI STYLE)
     # ==========================================
+    # Gira SOLO al primo avvio del mattino (es. 07:14)
     if DATA_OGGI.hour < 10:
         print("È mattina: Generazione Briefing in stile SNAI...")
         notizie = raccoglia_notizie_per_ia()
@@ -209,62 +210,62 @@ def main():
         print("Briefing mattutino consegnato!")
 
     # ==========================================
-    # MODALITÀ POMERIGGIO: RADAR G1 A FINESTRA (SNAI STYLE)
+    # 2. RADAR G1 A FINESTRA (SNAI STYLE) - GIRA SEMPRE
     # ==========================================
+    # Ora la finestra è impostata a 5.5 ore. Copre esattamente i buchi del cron (max 5 ore tra le 7 e le 12).
+    print("Ricerca G1 in partenza nelle prossime 5.5 ore...")
+    palinsesto_imminente = raccoglia_palinsesto_imminente(ore_finestra=5.5)
+    
+    if not palinsesto_imminente.strip():
+        print("Nessuna corsa rilevante nelle prossime ore.")
+        return
+
+    prompt_radar_sistema = """Sei un automa per il tracciamento di pattern ippici e quotista esperto. 
+    Il tuo unico scopo è analizzare un palinsesto imminente ed estrarre SOLAMENTE corse di massima categoria (Group 1 / Grade 1 / G1). 
+    Sei programmato per eseguire istruzioni condizionali con assoluta precisione, senza aggiungere testo extra o conversazionale."""
+    
+    prompt_radar_utente = f"""
+    Analizza le seguenti corse in partenza nelle prossime 5.5 ore (inclusi i partenti confermati):
+    
+    {palinsesto_imminente}
+    
+    ISTRUZIONE CONDIZIONALE RIGIDA:
+    - Se nella lista fornita NON E' PRESENTE esplicitamente una corsa classificabile come Gruppo 1 (G1, Grade 1), l'intero tuo output deve essere ESATTAMENTE e SOLO questa stringa: NESSUN_ALLARME
+    - Non aggiungere punti, spiegazioni o testo prima o dopo la stringa NESSUN_ALLARME.
+    
+    Se INVECE trovi una corsa di Gruppo 1, genera un'allerta tecnica formattata ESATTAMENTE così:
+    
+    🚨 <b>ALLARME G1 IN PARTENZA</b> 🚨
+    📍 <b>Ippodromo:</b> [Nome Ippodromo]
+    ⏰ <b>Partenza:</b> Ore [Orario]
+    🏆 <b>Corsa:</b> [Nome Corsa]
+    
+    📝 <b>Perizia Corsa:</b> [Commento da quotista SNAI: analisi dello schema, valutazione del terreno se noto, e contesto del Gruppo 1]
+    
+    📊 <b>I Protagonisti Principali:</b>
+    [Seleziona solo i 3 cavalli più pericolosi dalla lista PARTENTI CONFERMATI]
+    - <b>[Nome Cavallo]:</b> [Valutazione tecnica sulle sue chance di vittoria, forma recente presunta e attitudine al rientro/distanza]
+    """
+
+    risposta_groq = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        temperature=0.1, 
+        messages=[
+            {"role": "system", "content": prompt_radar_sistema},
+            {"role": "user", "content": prompt_radar_utente}
+        ]
+    )
+    
+    alert = risposta_groq.choices[0].message.content.strip()
+    
+    if alert == "NESSUN_ALLARME" or "NESSUN_ALLARME" in alert:
+        print("Nessun G1 nella finestra oraria attuale. Silenzio radio mantenuto.")
     else:
-        print("Pomeriggio/Sera: Ricerca G1 in partenza nelle prossime 3 ore...")
-        palinsesto_imminente = raccoglia_palinsesto_imminente(ore_finestra=3.5)
-        
-        if not palinsesto_imminente.strip():
-            print("Nessuna corsa rilevante nelle prossime ore.")
-            return
-
-        prompt_radar_sistema = """Sei un automa per il tracciamento di pattern ippici e quotista esperto. 
-        Il tuo unico scopo è analizzare un palinsesto imminente ed estrarre SOLAMENTE corse di massima categoria (Group 1 / Grade 1 / G1). 
-        Sei programmato per eseguire istruzioni condizionali con assoluta precisione, senza aggiungere testo extra o conversazionale."""
-        
-        prompt_radar_utente = f"""
-        Analizza le seguenti corse in partenza nelle prossime 3 ore (inclusi i partenti confermati):
-        
-        {palinsesto_imminente}
-        
-        ISTRUZIONE CONDIZIONALE RIGIDA:
-        - Se nella lista fornita NON E' PRESENTE esplicitamente una corsa classificabile come Gruppo 1 (G1, Grade 1), l'intero tuo output deve essere ESATTAMENTE e SOLO questa stringa: NESSUN_ALLARME
-        - Non aggiungere punti, spiegazioni o testo prima o dopo la stringa NESSUN_ALLARME.
-        
-        Se INVECE trovi una corsa di Gruppo 1, genera un'allerta tecnica formattata ESATTAMENTE così:
-        
-        🚨 <b>ALLARME G1 IN PARTENZA</b> 🚨
-        📍 <b>Ippodromo:</b> [Nome Ippodromo]
-        ⏰ <b>Partenza:</b> Ore [Orario]
-        🏆 <b>Corsa:</b> [Nome Corsa]
-        
-        📝 <b>Perizia Corsa:</b> [Commento da quotista SNAI: analisi dello schema, valutazione del terreno se noto, e contesto del Gruppo 1]
-        
-        📊 <b>I Protagonisti Principali:</b>
-        [Seleziona solo i 3 cavalli più pericolosi dalla lista PARTENTI CONFERMATI]
-        - <b>[Nome Cavallo]:</b> [Valutazione tecnica sulle sue chance di vittoria, forma recente presunta e attitudine al rientro/distanza]
-        """
-
-        risposta_groq = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            temperature=0.1,  # Temperatura abbassata per garantire maggiore aderenza formale al trigger NESSUN_ALLARME
-            messages=[
-                {"role": "system", "content": prompt_radar_sistema},
-                {"role": "user", "content": prompt_radar_utente}
-            ]
-        )
-        
-        alert = risposta_groq.choices[0].message.content.strip()
-        
-        if alert == "NESSUN_ALLARME" or "NESSUN_ALLARME" in alert:
-            print("Nessun G1 nella finestra oraria attuale. Silenzio radio mantenuto.")
+        status = manda_messaggio_telegram(alert)
+        if status == 200:
+            print("🚨 ALLARME G1 CONSEGNATO SU TELEGRAM!")
         else:
-            status = manda_messaggio_telegram(alert)
-            if status == 200:
-                print("🚨 ALLARME G1 CONSEGNATO SU TELEGRAM!")
-            else:
-                print(f"Errore Telegram: {status}")
+            print(f"Errore Telegram: {status}")
 
 if __name__ == "__main__":
     main()
