@@ -54,12 +54,12 @@ def pulisci_output_telegram(testo):
 # RACCOLTA DATI (NOTIZIE E PALINSESTO COMPLETO)
 # ==========================================
 def raccoglia_notizie_per_ia():
-    fonti = [
+   fonti = [
         {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/", "tipo": "diretto"},
-        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://www.thoroughbreddailynews.com/feed/", "tipo": "diretto"},
-        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/", "tipo": "diretto"},
-        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
-        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"}
+        {"nome": "EUROPEAN RACING (UK/FR)", "rss": "https://news.google.com/rss/search?q=horse+racing+uk+OR+france+when:24h&hl=en-GB&gl=GB&ceid=GB:en", "tipo": "google"},
+        {"nome": "ASIAN/AUS RACING", "rss": "https://news.google.com/rss/search?q=horse+racing+australia+OR+hong+kong+when:24h&hl=en-AU&gl=AU&ceid=AU:en", "tipo": "google"},
+        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:48h&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
+        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:48h&hl=en-US&gl=US&ceid=US:en", "tipo": "google"}
     ]
     
     testo_rss = ""
@@ -211,34 +211,44 @@ def main():
 
         if len(palinsesto) > 15000: palinsesto = palinsesto[:15000] + "\n[...]"
 
-        prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a top tier EUROPEAN bookmaker. 
-                Your style is cynical, highly technical, and engaging. 
-                
-                CRITICAL RULES:
-                1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
-                2. NO MARKDOWN: NEVER use ** for bold. Use ONLY <b> and <i> HTML tags.
-                3. GEOGRAPHICAL BALANCE: You MUST avoid being US-centric. If you select American news/races, you MUST actively balance it by selecting European (UK, France, Italy) or Asian/Middle Eastern news/races from the context.
-                4. NO HORSE HALLUCINATIONS: Do not invent stats (e.g. "imbattuto in 5 partite"). Do not invent a horse's preferred running style if you don't know it. However, you CAN evaluate how their pedigree or the track layout might affect the race generically.
-                5. CHAIN OF THOUGHT: Analyze facts in English inside <thought> ... </thought> first. Ensure geo-diversity.
-                """
-        
+           prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a European bookmaker. 
+            Your style is cynical, highly technical, and detailed. 
+            
+            CRITICAL RULES:
+            1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
+            2. NO MARKDOWN: NEVER use ** for bold. Use ONLY <b> and <i> HTML tags.
+            3. NO HORSE HALLUCINATIONS: Do not invent stats (e.g. "imbattuto"). Do not invent a horse's preferred running style if you don't know it. 
+            4. TEMPLATE ENFORCEMENT: You MUST strictly use the exact formatting and layout I provide in the prompt. Do not deviate.
+            """
+            
         prompt_utente = f"""
         TODAY'S NEWS: {notizie}
         TODAY'S SCHEDULE: {palinsesto}
         
         Write an engaging, technical "Briefing Mattutino".
         
-        Structure:
-        1) 📰 <b>Il punto della situazione:</b> 3-4 bullet points. Mix international news. Represent at least TWO different continents.
+        Use EXACTLY this structure and fill in the brackets:
         
-        2) 🏆 <b>Le Corse Imperdibili:</b> Select 2 prestigious races (mix the countries if possible). 
-           Format: <b>Ore [Time]</b> — <i>[Race Name]</i>
-           Comment: Write a dense paragraph of 4-5 lines for EACH race. Analyze the track profile, the ground, and the distance. DO NOT list all the runners. Select ONLY the top 3 most dangerous contenders from the [PARTENTI CHIAVE] list and write a cynical oddsmaker comment on their chances today based on the track.
+        📰 <b>Il punto della situazione:</b>
+        - [Write 3-4 deep, detailed lines about a European or Asian news item from the text]
+        - [Write 3-4 deep, detailed lines about an American news item from the text]
+        - [Write 3-4 deep lines about any other interesting fact from the news]
+        
+        🏆 <b>Le Corse Imperdibili:</b>
+        [Select 2 prestigious races. For EACH race, use exactly this format:]
+        
+        <b>Ore [Time]</b> — <i>[Race Name]</i>
+        <b>Analisi del tracciato:</b> [Write a cynical 3-line analysis about the track's difficulty, ground, and distance. DO NOT mention horses here.]
+        <b>I 3 Protagonisti:</b> [Pick EXACTLY 3 horses from the [PARTENTI CHIAVE] list]. 
+        1. <b>[Horse 1]</b>: [1-2 lines of technical comment]
+        2. <b>[Horse 2]</b>: [1-2 lines of technical comment]
+        3. <b>[Horse 3]</b>: [1-2 lines of technical comment]
            
-        3) 🏇 <b>Da Tenere d'Occhio:</b> Select 3 real entities (horses, jockeys, or trainers) from the news. MUST include at least one European or Asian entity. 
-           Write 2-3 lines of deep technical analysis for each. If a trainer, evaluate their stable form. If a yearling, evaluate the sire/dam market appeal.
+        🏇 <b>Da Tenere d'Occhio:</b>
+        [Select 3 real entities (horses, jockeys, or trainers) from the news. Use this format:]
+        - <b>[Name]</b>: [3 lines of deep technical analysis. If it's a trainer/jockey, discuss stable form. If it's an auction horse, discuss pedigree/price.]
 
-        First, write your analysis inside <thought> tags. Then, output the Italian message.
+        First, write your analysis inside <thought> tags. Then, output the Italian message strictly following the template above.
         """
         risposta_groq = client.chat.completions.create(
             model=MODELLO_IA,
