@@ -191,11 +191,11 @@ def manda_messaggio_telegram(testo):
     return risposta.status_code
 
 def main():
-    # ==========================================
+# ==========================================
     # 1. MODALITÀ MATTINO: BRIEFING (SNAI STYLE)
     # ==========================================
-    # ORA È TASSATIVO: Gira SOLO ed ESCLUSIVAMENTE quando l'ora UTC è esattamente le 7
-    if DATA_OGGI.hour == 7:
+    # MODALITÀ DEBUG: Forza l'esecuzione ignorando l'orario
+    if True:
         print("È mattina (ore 7 UTC): Generazione Briefing in stile SNAI...")
         notizie = raccoglia_notizie_per_ia()
         palinsesto = raccoglia_palinsesto_completo()
