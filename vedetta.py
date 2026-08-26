@@ -11,7 +11,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# 2. Configura il client IA (Groq) - Usiamo il modello Llama 3.1 70B che è il più intelligente su Groq
+# 2. Configura il client IA (Groq)
 client = Groq(api_key=GROQ_API_KEY)
 MODELLO_IA = "openai/gpt-oss-120b"
 
@@ -50,11 +50,12 @@ def pulisci_output_telegram(testo):
     # Distrugge i tag HTML illegali per Telegram
     testo_pulito = testo_pulito.replace('<br>', '\n').replace('<br/>', '\n').replace('</br>', '')
     return testo_pulito.strip()
+
 # ==========================================
 # RACCOLTA DATI (NOTIZIE E PALINSESTO COMPLETO)
 # ==========================================
 def raccoglia_notizie_per_ia():
-   fonti = [
+    fonti = [
         {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/", "tipo": "diretto"},
         {"nome": "EUROPEAN RACING (UK/FR)", "rss": "https://news.google.com/rss/search?q=horse+racing+uk+OR+france+when:24h&hl=en-GB&gl=GB&ceid=GB:en", "tipo": "google"},
         {"nome": "ASIAN/AUS RACING", "rss": "https://news.google.com/rss/search?q=horse+racing+australia+OR+hong+kong+when:24h&hl=en-AU&gl=AU&ceid=AU:en", "tipo": "google"},
@@ -86,7 +87,11 @@ def raccoglia_notizie_per_ia():
                     titolo = titolo.rsplit(" - ", 1)[0]
                 if contiene_asiatico(titolo): continue
                 
-                testo_rss += f"- [{f['nome']}] {titolo}\n"
+                # ESTRAZIONE DELLA DESCRIZIONE PER EVITARE ALLUCINAZIONI SUI TITOLI
+                descrizione = getattr(entry, 'description', getattr(entry, 'summary', 'Nessun dettaglio.'))
+                descrizione = re.sub(r'<[^>]+>', '', descrizione).strip()[:250]
+                
+                testo_rss += f"- [{f['nome']}] TITOLO: {titolo}\n  DETTAGLI: {descrizione}...\n"
                 valide += 1
         except:
             continue
@@ -112,7 +117,7 @@ def raccoglia_palinsesto_completo():
                     ora = r.get('time', 'N/D')
                     titolo_c = r.get('race_name', r.get('name', 'Corsa'))
                     
-                    # NOVITÀ: Estrae i partenti anche al mattino SOLO per le corse importanti (Group, Listed, Class 1)
+                    # Estrae i partenti anche al mattino SOLO per le corse importanti (Group, Listed, Class 1)
                     partenti_str = ""
                     if any(kw in titolo_c.upper() for kw in ["GROUP ", "GRADE ", "LISTED", "CLASS 1", "STAKES"]):
                         race_id = r.get('race_summary_reference', {}).get('id') if isinstance(r.get('race_summary_reference'), dict) else None
@@ -200,7 +205,7 @@ def manda_messaggio_telegram(testo):
     return risposta.status_code
 
 def main():
-# ==========================================
+    # ==========================================
     # 1. MODALITÀ MATTINO: BRIEFING (SNAI STYLE)
     # ==========================================
     # MODALITÀ DEBUG: Forza l'esecuzione ignorando l'orario
@@ -211,45 +216,56 @@ def main():
 
         if len(palinsesto) > 15000: palinsesto = palinsesto[:15000] + "\n[...]"
 
-           prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a European bookmaker. 
-            Your style is cynical, highly technical, and detailed. 
-            
-            CRITICAL RULES:
-            1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
-            2. NO MARKDOWN: NEVER use ** for bold. Use ONLY <b> and <i> HTML tags.
-            3. NO HORSE HALLUCINATIONS: Do not invent stats (e.g. "imbattuto"). Do not invent a horse's preferred running style if you don't know it. 
-            4. TEMPLATE ENFORCEMENT: You MUST strictly use the exact formatting and layout I provide in the prompt. Do not deviate.
-            """
-            
+        prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a European bookmaker. 
+        Your style is cynical, highly technical, and detailed. 
+        
+        CRITICAL RULES:
+        1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
+        2. NO MARKDOWN: NEVER use ** for bold. Use ONLY <b> and <i> HTML tags.
+        3. MAX 3 HORSES: When analyzing a race, you are FORBIDDEN from listing all runners. You must pick exactly 3.
+        4. ACTIVE HORSES ONLY: For the "Da Tenere d'Occhio" section, you MUST select ACTIVE RACING HORSES. You are STRICTLY FORBIDDEN from selecting yearlings, foals, trainers, jockeys, or owners.
+        5. COPY THE EXAMPLE STYLE: You must strictly copy the formatting, length, and depth of the example provided.
+        """
+        
         prompt_utente = f"""
-        TODAY'S NEWS: {notizie}
-        TODAY'S SCHEDULE: {palinsesto}
+        [DATI DI INPUT ODIERNI]
+        NOTIZIE: 
+        {notizie}
         
-        Write an engaging, technical "Briefing Mattutino".
+        PALINSESTO: 
+        {palinsesto}
         
-        Use EXACTLY this structure and fill in the brackets:
-        
+        [ESEMPIO DI OUTPUT PERFETTO CHE DEVI IMITARE]
         📰 <b>Il punto della situazione:</b>
-        - [Write 3-4 deep, detailed lines about a European or Asian news item from the text]
-        - [Write 3-4 deep, detailed lines about an American news item from the text]
-        - [Write 3-4 deep lines about any other interesting fact from the news]
+        - Il galoppo europeo si infiamma con l'annuncio del rientro di City Of Troy a York; leggendo i dettagli, il team punta tutto sulle Juddmonte International su un terreno che si preannuncia compatto, ideale per le sue lunghe leve.
+        - Sul fronte americano, l'asta in Texas ha visto cifre da capogiro per i figli di Gunite, confermando che il mercato d'oltreoceano cerca disperatamente precocità e stalloni affermati.
+        - In Australia, il mercato dei fantini subisce uno scossone con la squalifica di J. McDonald. Le motivazioni fornite indicano un cambio di rotta severo da parte dei commissari, che rimescola le carte per le prossime corse a Randwick.
         
         🏆 <b>Le Corse Imperdibili:</b>
-        [Select 2 prestigious races. For EACH race, use exactly this format:]
+        <b>Ore 15:30</b> — <i>Prix Jacques Le Marois (Deauville)</i>
+        <b>Analisi del tracciato:</b> Il miglio in pista dritta di Deauville è un test spietato per i polmoni. Il terreno pesante di oggi annullerà i velocisti puri, favorendo chi ha stamina da vendere negli ultimi 200 metri e sangue freddo.
+        <b>I 3 Protagonisti:</b>
+        1. <b>Inspiral</b>: La regina del miglio. Se trova il varco ai 400 finali, la sua progressione è letale.
+        2. <b>Big Rock</b>: Un front-runner spietato. Proverà a stroncare tutti sul passo fin dall'apertura delle gabbie.
+        3. <b>Charyn</b>: Regolarissimo quest'anno, ha la solidità perfetta per raccogliere i cocci se i primi due si scannano.
         
-        <b>Ore [Time]</b> — <i>[Race Name]</i>
-        <b>Analisi del tracciato:</b> [Write a cynical 3-line analysis about the track's difficulty, ground, and distance. DO NOT mention horses here.]
-        <b>I 3 Protagonisti:</b> [Pick EXACTLY 3 horses from the [PARTENTI CHIAVE] list]. 
-        1. <b>[Horse 1]</b>: [1-2 lines of technical comment]
-        2. <b>[Horse 2]</b>: [1-2 lines of technical comment]
-        3. <b>[Horse 3]</b>: [1-2 lines of technical comment]
+        <b>Ore 20:40</b> — <i>Bolton Landing Stakes (Saratoga)</i>
+        <b>Analisi del tracciato:</b> Pista in erba americana, dove lo scatto dal gabbione è tutto. I front-runner puri rischiano di cuocersi, ma chi resta troppo indietro nel traffico non recupera. Serve posizione tattica e un cambio di marcia violento.
+        <b>I 3 Protagonisti:</b>
+        1. <b>More Champagne</b>: Sulla carta ha i parziali migliori, ma il numero di steccato potrebbe costringerla agli straordinari.
+        2. <b>Side Quest</b>: Incognita legata al terreno, ma i rating recenti la mettono un gradino sopra le rivali se trova varchi.
+        3. <b>Extravaganzoo</b>: Outsider di lusso, da non sottovalutare se le favorite impostano un ritmo suicida.
            
         🏇 <b>Da Tenere d'Occhio:</b>
-        [Select 3 real entities (horses, jockeys, or trainers) from the news. Use this format:]
-        - <b>[Name]</b>: [3 lines of deep technical analysis. If it's a trainer/jockey, discuss stable form. If it's an auction horse, discuss pedigree/price.]
+        - <b>Rosallion</b>: Il tre anni di Hannon ha dimostrato di avere un motore fuori dal comune nelle St James's Palace Stakes. Il suo target principale resta il miglio autunnale; se mantiene questa condizione, sarà il cavallo da battere in Europa.
+        - <b>Romantic Warrior</b>: L'asso di Hong Kong continua a macinare lavori impressionanti in pista mattutina. Con un rating ormai consolidato a livello globale, il suo rientro sui 2000 metri a Sha Tin è atteso per confermare la sua supremazia.
+        - <b>Fierceness</b>: Dopo i recenti alti e bassi, il team americano sembra aver trovato la quadra. Ha bisogno di condurre la corsa senza troppa pressione per rendere al meglio; il prossimo impegno in un Grade 1 ci dirà se è tornato il vero dominatore.
 
-        First, write your analysis inside <thought> tags. Then, output the Italian message strictly following the template above.
+        [IL TUO TURNO]
+        Ora, scrivi il VERO briefing utilizzando SOLO i [DATI DI INPUT ODIERNI]. 
+        Usa ESATTAMENTE la stessa struttura. Nel punto della situazione, usa i DETTAGLI delle notizie per scrivere 3 righe corpose. In "Da Tenere d'Occhio", scegli SOLO 3 CAVALLI DA CORSA ATTIVI (ignora umani o puledri d'asta). Nessun tag <thought>.
         """
+
         risposta_groq = client.chat.completions.create(
             model=MODELLO_IA,
             temperature=0.3,
