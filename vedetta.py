@@ -188,6 +188,12 @@ def manda_messaggio_telegram(testo):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": testo, "parse_mode": "HTML"}
     risposta = requests.post(url, json=payload)
+    
+    # TRAPPOLA PER ERRORI: Se Telegram rifiuta, stampa il motivo esatto!
+    if risposta.status_code != 200:
+        print(f"❌ ERRORE TELEGRAM [{risposta.status_code}]: {risposta.text}")
+        print(f"📝 IL TESTO CHE HA CAUSATO L'ERRORE ERA:\n{testo}")
+        
     return risposta.status_code
 
 def main():
