@@ -13,7 +13,7 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 # 2. Configura il client IA (Groq) - Usiamo il modello Llama 3.1 70B che è il più intelligente su Groq
 client = Groq(api_key=GROQ_API_KEY)
-MODELLO_IA = "llama-3.1-70b-versatile"
+MODELLO_IA = "openai/gpt-oss-120b"
 
 DATA_OGGI = datetime.utcnow()
 
