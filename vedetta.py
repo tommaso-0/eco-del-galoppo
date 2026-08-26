@@ -42,11 +42,12 @@ def contiene_asiatico(testo):
     except:
         return False
 
-# Filtra via il ragionamento "nascosto" dell'IA per non stamparlo su Telegram
 def pulisci_output_telegram(testo):
+    # Rimuove i pensieri nascosti
     testo_pulito = re.sub(r'<thought>.*?</thought>', '', testo, flags=re.DOTALL)
+    # Distrugge i tag HTML illegali per Telegram
+    testo_pulito = testo_pulito.replace('<br>', '\n').replace('<br/>', '\n').replace('</br>', '')
     return testo_pulito.strip()
-
 # ==========================================
 # RACCOLTA DATI (NOTIZIE E PALINSESTO COMPLETO)
 # ==========================================
@@ -208,34 +209,34 @@ def main():
 
         if len(palinsesto) > 15000: palinsesto = palinsesto[:15000] + "\n[...]"
 
-      prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a top tier European bookmaker. 
-        You are cynical, analytical, and strictly factual.
+      prompt_sistema = """You are the Senior Oddsmaker for a top tier European bookmaker. 
+        You are strictly factual. 
         
         CRITICAL RULES:
-        1. OUTPUT LANGUAGE: You MUST write the final Telegram message entirely in ITALIAN.
-        2. ENTITY RECOGNITION (CRITICAL): Distinguish between horses and humans. Names like "Cherie DeVaux", "Bob Baffert", "Aidan O'Brien", "Frankie Dettori" are TRAINERS or JOCKEYS. NEVER analyze a human as if they were a horse (do not give them an age, distance aptitude, or running style). Discuss their stable form or strategy instead.
-        3. NO HORSE HALLUCINATIONS: When provided with [PARTENTI CHIAVE] for a race, DO NOT invent their running style (e.g., front-runner, late run) or form if you don't know it. Only list them as top contenders.
-        4. SALES & AUCTIONS: If a news item is about a "yearling", "foal", "colt/filly sale", or auction, DO NOT invent race tactics. Discuss only their commercial value and pedigree.
-        5. CHAIN OF THOUGHT: Before writing the Italian briefing, analyze the data in English inside <thought> ... </thought> tags. Verify if entities are humans or horses.
+        1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
+        2. NO HTML LINE BREAKS: NEVER use <br> or <br/> tags. Use standard newlines.
+        3. NO HORSE HALLUCINATIONS: You are FORBIDDEN from describing the running style (e.g. front-runner, closer) of ANY horse unless it's explicitly written in the news. 
+        4. PUNISHMENT FOR FAKE FACTS: Do not invent stats (e.g. "imbattuto in 5 partite"). If a horse is a yearling/foal, it has NEVER raced.
+        5. CHAIN OF THOUGHT: Analyze facts in English inside <thought> ... </thought> first.
         """
         
         prompt_utente = f"""
         TODAY'S NEWS: {notizie}
         TODAY'S SCHEDULE: {palinsesto}
         
-        Write the "Briefing Mattutino" (Morning Briefing) formatted with HTML tags (<b>, <i>) for Telegram.
+        Write the "Briefing Mattutino".
         
         Structure:
-        1) 📰 <b>Il punto della situazione:</b> 3 bullet points summarizing the raw facts from the news.
-        2) 🏆 <b>Le Corse Imperdibili:</b> Select the 2 most prestigious races from the schedule. 
-           Format: <b>Ore [Time]</b> — <i>[Race Name]</i>. 
-           Comment: Write 2-3 cynical lines for EACH race analyzing ONLY the track's difficulty, the required stamina/speed for the distance, and simply name the [PARTENTI CHIAVE] as the market leaders without inventing their tactical style.
-        3) 🏇 <b>Da Tenere d'Occhio:</b> Select 2 real entities (horses or humans) mentioned in the news. 
-           If a Trainer/Jockey: comment on their recent stable form or career path.
-           If active horse: comment on target and aptitude.
-           If auction foal/yearling: comment on price and pedigree. 
+        1) 📰 <b>Il punto della situazione:</b> 3 bullet points with raw facts from the news.
+        2) 🏆 <b>Le Corse Imperdibili:</b> Select the 2 most prestigious races. 
+           Format: <b>Ore [Time]</b> — <i>[Race Name]</i>
+           Comment: Write EXACTLY 2 sentences. 
+           Sentence 1: Analyze the track's difficulty (distance/ground). 
+           Sentence 2: Simply list the [PARTENTI CHIAVE] as the main contenders. DO NOT invent their running styles.
+        3) 🏇 <b>Da Tenere d'Occhio:</b> Select 2 real entities (horses or humans) from the news. 
+           If yearling/foal: mention price/pedigree ONLY. NEVER say they won races.
 
-        First, write your analysis inside <thought> tags. Then, output the final Italian message.
+        First, write your analysis inside <thought> tags. Then, output the Italian message.
         """
 
         risposta_groq = client.chat.completions.create(
