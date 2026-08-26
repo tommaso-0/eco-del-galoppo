@@ -45,6 +45,8 @@ def contiene_asiatico(testo):
 def pulisci_output_telegram(testo):
     # Rimuove i pensieri nascosti
     testo_pulito = re.sub(r'<thought>.*?</thought>', '', testo, flags=re.DOTALL)
+    # Converte il Markdown (**) in HTML (<b>) se l'IA fa di testa sua
+    testo_pulito = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', testo_pulito)
     # Distrugge i tag HTML illegali per Telegram
     testo_pulito = testo_pulito.replace('<br>', '\n').replace('<br/>', '\n').replace('</br>', '')
     return testo_pulito.strip()
@@ -209,36 +211,35 @@ def main():
 
         if len(palinsesto) > 15000: palinsesto = palinsesto[:15000] + "\n[...]"
 
-        prompt_sistema = """You are the Senior Oddsmaker for a top tier European bookmaker. 
-            You are strictly factual. 
-            
-            CRITICAL RULES:
-            1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
-            2. NO HTML LINE BREAKS: NEVER use <br> or <br/> tags. Use standard newlines.
-            3. NO HORSE HALLUCINATIONS: You are FORBIDDEN from describing the running style (e.g. front-runner, closer) of ANY horse unless it's explicitly written in the news. 
-            4. PUNISHMENT FOR FAKE FACTS: Do not invent stats (e.g. "imbattuto in 5 partite"). If a horse is a yearling/foal, it has NEVER raced.
-            5. CHAIN OF THOUGHT: Analyze facts in English inside <thought> ... </thought> first.
-            """
+        prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a top tier EUROPEAN bookmaker. 
+                Your style is cynical, highly technical, and engaging. 
+                
+                CRITICAL RULES:
+                1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
+                2. NO MARKDOWN: NEVER use ** for bold. Use ONLY <b> and <i> HTML tags.
+                3. GEOGRAPHICAL BALANCE: You MUST avoid being US-centric. If you select American news/races, you MUST actively balance it by selecting European (UK, France, Italy) or Asian/Middle Eastern news/races from the context.
+                4. NO HORSE HALLUCINATIONS: Do not invent stats (e.g. "imbattuto in 5 partite"). Do not invent a horse's preferred running style if you don't know it. However, you CAN evaluate how their pedigree or the track layout might affect the race generically.
+                5. CHAIN OF THOUGHT: Analyze facts in English inside <thought> ... </thought> first. Ensure geo-diversity.
+                """
         
         prompt_utente = f"""
         TODAY'S NEWS: {notizie}
         TODAY'S SCHEDULE: {palinsesto}
         
-        Write the "Briefing Mattutino".
+        Write an engaging, technical "Briefing Mattutino".
         
         Structure:
-        1) 📰 <b>Il punto della situazione:</b> 3 bullet points with raw facts from the news.
-        2) 🏆 <b>Le Corse Imperdibili:</b> Select the 2 most prestigious races. 
+        1) 📰 <b>Il punto della situazione:</b> 3-4 bullet points. Mix international news. Represent at least TWO different continents.
+        
+        2) 🏆 <b>Le Corse Imperdibili:</b> Select 2 prestigious races (mix the countries if possible). 
            Format: <b>Ore [Time]</b> — <i>[Race Name]</i>
-           Comment: Write EXACTLY 2 sentences. 
-           Sentence 1: Analyze the track's difficulty (distance/ground). 
-           Sentence 2: Simply list the [PARTENTI CHIAVE] as the main contenders. DO NOT invent their running styles.
-        3) 🏇 <b>Da Tenere d'Occhio:</b> Select 2 real entities (horses or humans) from the news. 
-           If yearling/foal: mention price/pedigree ONLY. NEVER say they won races.
+           Comment: Write a dense paragraph of 4-5 lines for EACH race. Analyze the track profile, the ground, and the distance. DO NOT list all the runners. Select ONLY the top 3 most dangerous contenders from the [PARTENTI CHIAVE] list and write a cynical oddsmaker comment on their chances today based on the track.
+           
+        3) 🏇 <b>Da Tenere d'Occhio:</b> Select 3 real entities (horses, jockeys, or trainers) from the news. MUST include at least one European or Asian entity. 
+           Write 2-3 lines of deep technical analysis for each. If a trainer, evaluate their stable form. If a yearling, evaluate the sire/dam market appeal.
 
         First, write your analysis inside <thought> tags. Then, output the Italian message.
         """
-
         risposta_groq = client.chat.completions.create(
             model=MODELLO_IA,
             temperature=0.3,
