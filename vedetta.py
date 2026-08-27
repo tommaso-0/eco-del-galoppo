@@ -2,6 +2,7 @@ import os
 import requests
 import feedparser
 import re
+import time
 from datetime import datetime, timedelta
 from groq import Groq
 
@@ -12,13 +13,15 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 # 2. Configura il client IA (Groq)
 client = Groq(api_key=GROQ_API_KEY)
+MODELLO_IA = "openai/gpt-oss-120b"
 
 DATA_OGGI = datetime.utcnow()
 
 class OggettoNotizia:
-    def __init__(self, title, link):
+    def __init__(self, title, link, published_dt):
         self.title = str(title)
         self.link = str(link)
+        self.published = published_dt
 
 def esplora_json(dizionario, chiavi_target):
     try:
@@ -39,36 +42,56 @@ def contiene_asiatico(testo):
     except:
         return False
 
+def pulisci_output_telegram(testo):
+    # Rimuove i pensieri nascosti
+    testo_pulito = re.sub(r'<thought>.*?</thought>', '', testo, flags=re.DOTALL)
+    # Converte il Markdown (**) in HTML (<b>) se l'IA fa di testa sua
+    testo_pulito = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', testo_pulito)
+    # Distrugge i tag HTML illegali per Telegram
+    testo_pulito = testo_pulito.replace('<br>', '\n').replace('<br/>', '\n').replace('</br>', '')
+    return testo_pulito.strip()
+
 # ==========================================
 # RACCOLTA DATI (NOTIZIE E PALINSESTO COMPLETO)
 # ==========================================
 def raccoglia_notizie_per_ia():
     fonti = [
         {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/", "tipo": "diretto"},
-        {"nome": "THOROUGHBRED DAILY NEWS", "rss": "https://www.thoroughbreddailynews.com/feed/", "tipo": "diretto"},
-        {"nome": "ASIAN RACING REPORT", "rss": "https://asianracingreport.com/feed/", "tipo": "diretto"},
-        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
-        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:7d&hl=en-US&gl=US&ceid=US:en", "tipo": "google"}
+        {"nome": "EUROPEAN RACING (UK/FR)", "rss": "https://news.google.com/rss/search?q=horse+racing+uk+OR+france+when:24h&hl=en-GB&gl=GB&ceid=GB:en", "tipo": "google"},
+        {"nome": "ASIAN/AUS RACING", "rss": "https://news.google.com/rss/search?q=horse+racing+australia+OR+hong+kong+when:24h&hl=en-AU&gl=AU&ceid=AU:en", "tipo": "google"},
+        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:48h&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
+        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:48h&hl=en-US&gl=US&ceid=US:en", "tipo": "google"}
     ]
     
     testo_rss = ""
     headers = {"User-Agent": "Mozilla/5.0"}
     for f in fonti:
-        entries_finali = []
         try:
             res = requests.get(f['rss'], headers=headers, timeout=5)
             feed = feedparser.parse(res.content)
-            if hasattr(feed, 'entries') and feed.entries:
-                entries_finali = [OggettoNotizia(e.title, e.link) for e in feed.entries if hasattr(e, 'title') and hasattr(e, 'link')]
             
             valide = 0
-            for entry in entries_finali:
+            for entry in feed.entries:
                 if valide >= 2: break 
+                
+                # FILTRO ANTI-ZOMBIE (Scarta notizie più vecchie di 48 ore)
+                dt_pub = DATA_OGGI
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    dt_pub = datetime.fromtimestamp(time.mktime(entry.published_parsed))
+                
+                if (DATA_OGGI - dt_pub).total_seconds() > (48 * 3600):
+                    continue # Notizia troppo vecchia, saltala
+                
                 titolo = getattr(entry, 'title', '')
                 if f["tipo"] == "google" and " - " in titolo:
                     titolo = titolo.rsplit(" - ", 1)[0]
                 if contiene_asiatico(titolo): continue
-                testo_rss += f"- [{f['nome']}] {titolo}\n"
+                
+                # ESTRAZIONE DELLA DESCRIZIONE PER EVITARE ALLUCINAZIONI SUI TITOLI
+                descrizione = getattr(entry, 'description', getattr(entry, 'summary', 'Nessun dettaglio.'))
+                descrizione = re.sub(r'<[^>]+>', '', descrizione).strip()[:250]
+                
+                testo_rss += f"- [{f['nome']}] TITOLO: {titolo}\n  DETTAGLI: {descrizione}...\n"
                 valide += 1
         except:
             continue
@@ -80,7 +103,7 @@ def raccoglia_palinsesto_completo():
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     testo_palinsesto = ""
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=15)
         if res.status_code == 200:
             meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
             for m in meetings:
@@ -88,11 +111,28 @@ def raccoglia_palinsesto_completo():
                 races = m.get('races', [])
                 nome_ipp = esplora_json(m, ['name', 'course_name', 'meeting_name', 'venue']) or "IPPODROMO"
                 testo_palinsesto += f"\nIppodromo: {nome_ipp}\n"
+                
                 for r in races:
                     if not isinstance(r, dict): continue
                     ora = r.get('time', 'N/D')
                     titolo_c = r.get('race_name', r.get('name', 'Corsa'))
-                    testo_palinsesto += f"  - Ore {ora}: {titolo_c}\n"
+                    
+                    # Estrae i partenti anche al mattino SOLO per le corse importanti (Group, Listed, Class 1)
+                    partenti_str = ""
+                    if any(kw in titolo_c.upper() for kw in ["GROUP ", "GRADE ", "LISTED", "CLASS 1", "STAKES"]):
+                        race_id = r.get('race_summary_reference', {}).get('id') if isinstance(r.get('race_summary_reference'), dict) else None
+                        if race_id:
+                            try:
+                                r_res = requests.get(f"https://www.sportinglife.com/api/horse-racing/race/{race_id}", headers=headers, timeout=5)
+                                if r_res.status_code == 200:
+                                    rides = r_res.json().get('rides', [])
+                                    cavalli = [p.get('horse', {}).get('name', '') for p in rides if isinstance(p, dict) and isinstance(p.get('horse'), dict)]
+                                    cavalli_validi = [c for c in cavalli if c][:12] # Prende i primi 12
+                                    if cavalli_validi:
+                                        partenti_str = f" [PARTENTI CHIAVE: {', '.join(cavalli_validi)}]"
+                            except: pass
+                            
+                    testo_palinsesto += f"  - Ore {ora}: {titolo_c}{partenti_str}\n"
     except:
         testo_palinsesto = "Palinsesto non disponibile."
     return testo_palinsesto
@@ -105,12 +145,10 @@ def raccoglia_palinsesto_imminente(ore_finestra=5.5):
     url = f"https://www.sportinglife.com/api/horse-racing/racing/racecards/{oggi_str}"
     headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     testo_palinsesto = ""
-    
-    # Orario UK per il calcolo (Sporting Life usa UK Time)
     ora_attuale_uk = DATA_OGGI + timedelta(hours=1) 
     
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=15)
         if res.status_code == 200:
             meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
             for m in meetings:
@@ -128,20 +166,15 @@ def raccoglia_palinsesto_imminente(ore_finestra=5.5):
                         ore, minuti = map(int, ora_str.split(':'))
                         race_time = ora_attuale_uk.replace(hour=ore, minute=minuti, second=0)
                         diff_ore = (race_time - ora_attuale_uk).total_seconds() / 3600
-                        
-                        # Filtro a finestra allargata a 5.5 ore
                         if 0 <= diff_ore <= ore_finestra:
                             corse_imminenti.append(r)
-                    except:
-                        pass
+                    except: pass
                 
                 if corse_imminenti:
                     testo_palinsesto += f"\nIppodromo: {nome_ipp}\n"
                     for r in corse_imminenti:
                         ora = r.get('time', 'N/D')
                         titolo_c = r.get('race_name', r.get('name', 'Corsa'))
-                        
-                        # Cacciatore di Partenti (solo per le imminenti)
                         partenti_str = ""
                         race_id = r.get('race_summary_reference', {}).get('id') if isinstance(r.get('race_summary_reference'), dict) else None
                         if race_id:
@@ -154,9 +187,8 @@ def raccoglia_palinsesto_imminente(ore_finestra=5.5):
                                     if cavalli_validi:
                                         partenti_str = f" [PARTENTI CONFERMATI: {', '.join(cavalli_validi)}]"
                             except: pass
-                            
                         testo_palinsesto += f"  - Ore {ora}: {titolo_c}{partenti_str}\n"
-    except Exception as e:
+    except:
         testo_palinsesto = "Errore connessione palinsesto."
     return testo_palinsesto
 
@@ -164,55 +196,92 @@ def manda_messaggio_telegram(testo):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": testo, "parse_mode": "HTML"}
     risposta = requests.post(url, json=payload)
+    
+    # TRAPPOLA PER ERRORI: Se Telegram rifiuta, stampa il motivo esatto!
+    if risposta.status_code != 200:
+        print(f"❌ ERRORE TELEGRAM [{risposta.status_code}]: {risposta.text}")
+        print(f"📝 IL TESTO CHE HA CAUSATO L'ERRORE ERA:\n{testo}")
+        
     return risposta.status_code
 
 def main():
     # ==========================================
     # 1. MODALITÀ MATTINO: BRIEFING (SNAI STYLE)
     # ==========================================
-    # Gira SOLO al primo avvio del mattino (es. 07:14)
-    if DATA_OGGI.hour < 10:
-        print("È mattina: Generazione Briefing in stile SNAI...")
+    # MODALITÀ DEBUG: Forza l'esecuzione ignorando l'orario
+    if DATA_OGGI.hour == 7:
+        print("È mattina (ore 7 UTC): Generazione Briefing in stile SNAI...")
         notizie = raccoglia_notizie_per_ia()
         palinsesto = raccoglia_palinsesto_completo()
 
         if len(palinsesto) > 15000: palinsesto = palinsesto[:15000] + "\n[...]"
 
-        prompt_sistema = """Sei il Capo Quotista (Senior Oddsmaker) per un importante bookmaker italiano. 
-        Il tuo compito è fornire analisi ippiche chirurgiche, ciniche e strettamente fattuali. 
-        Valuti forma recente, attitudine al tracciato/distanza, genealogia e schema di corsa. 
-        REGOLA D'ORO: Non allucinare mai nomi di cavalli o ippodromi inesistenti. Utilizza un lessico tecnico ippico italiano irreprensibile."""
+        prompt_sistema = """You are the Senior Oddsmaker and Head Handicapper for a European bookmaker. 
+        Your style is cynical, highly technical, and detailed. 
+        
+        CRITICAL RULES:
+        1. OUTPUT LANGUAGE: MUST be entirely in ITALIAN.
+        2. NO MARKDOWN: NEVER use ** for bold. Use ONLY <b> and <i> HTML tags.
+        3. MAX 3 HORSES: When analyzing a race, you are FORBIDDEN from listing all runners. You must pick exactly 3.
+        4. ACTIVE HORSES ONLY: For the "Da Tenere d'Occhio" section, you MUST select ACTIVE RACING HORSES. You are STRICTLY FORBIDDEN from selecting yearlings, foals, trainers, jockeys, or owners.
+        5. COPY THE EXAMPLE STYLE: You must strictly copy the formatting, length, and depth of the example provided.
+        """
         
         prompt_utente = f"""
-        NOTIZIE ODIERNE: {notizie}
-        PALINSESTO ODIERNO: {palinsesto}
+        [DATI DI INPUT ODIERNI]
+        NOTIZIE: 
+        {notizie}
         
-        Redigi un "Briefing Mattutino" formattato con i tag HTML (<b>, <i>) supportati da Telegram.
-        Niente convenevoli, vai dritto al sodo con la massima competenza tecnica.
+        PALINSESTO: 
+        {palinsesto}
         
-        Struttura obbligatoria:
-        1) 📰 <b>Il punto della situazione:</b> Sintesi tecnica (max 3 righe) basata ESCLUSIVAMENTE sulle NOTIZIE ODIERNE fornite.
-        2) 🏆 <b>Le Corse Imperdibili:</b> Individua le 2 corse più prestigiose (es. Gruppi, Listed o Handicap Principali) dal PALINSESTO ODIERNO. 
-           Formato per ognuna: <b>Ore [Orario]</b> — <i>[Nome Corsa]</i>. Aggiungi un rapido commento tecnico sul perché la corsa è rilevante.
-        3) 🏇 <b>Da Tenere d'Occhio:</b> Seleziona 2 cavalli menzionati nelle notizie. Scrivi per ciascuno una "perizia" da quotista (valutazione della chance, possibile quota, schema tattico, adattabilità).
+        [ESEMPIO DI OUTPUT PERFETTO CHE DEVI IMITARE]
+        📰 <b>Il punto della situazione:</b>
+        - Il galoppo europeo si infiamma con l'annuncio del rientro di City Of Troy a York; leggendo i dettagli, il team punta tutto sulle Juddmonte International su un terreno che si preannuncia compatto, ideale per le sue lunghe leve.
+        - Sul fronte americano, l'asta in Texas ha visto cifre da capogiro per i figli di Gunite, confermando che il mercato d'oltreoceano cerca disperatamente precocità e stalloni affermati.
+        - In Australia, il mercato dei fantini subisce uno scossone con la squalifica di J. McDonald. Le motivazioni fornite indicano un cambio di rotta severo da parte dei commissari, che rimescola le carte per le prossime corse a Randwick.
+        
+        🏆 <b>Le Corse Imperdibili:</b>
+        <b>Ore 15:30</b> — <i>Prix Jacques Le Marois (Deauville)</i>
+        <b>Analisi del tracciato:</b> Il miglio in pista dritta di Deauville è un test spietato per i polmoni. Il terreno pesante di oggi annullerà i velocisti puri, favorendo chi ha stamina da vendere negli ultimi 200 metri e sangue freddo.
+        <b>I 3 Protagonisti:</b>
+        1. <b>Inspiral</b>: La regina del miglio. Se trova il varco ai 400 finali, la sua progressione è letale.
+        2. <b>Big Rock</b>: Un front-runner spietato. Proverà a stroncare tutti sul passo fin dall'apertura delle gabbie.
+        3. <b>Charyn</b>: Regolarissimo quest'anno, ha la solidità perfetta per raccogliere i cocci se i primi due si scannano.
+        
+        <b>Ore 20:40</b> — <i>Bolton Landing Stakes (Saratoga)</i>
+        <b>Analisi del tracciato:</b> Pista in erba americana, dove lo scatto dal gabbione è tutto. I front-runner puri rischiano di cuocersi, ma chi resta troppo indietro nel traffico non recupera. Serve posizione tattica e un cambio di marcia violento.
+        <b>I 3 Protagonisti:</b>
+        1. <b>More Champagne</b>: Sulla carta ha i parziali migliori, ma il numero di steccato potrebbe costringerla agli straordinari.
+        2. <b>Side Quest</b>: Incognita legata al terreno, ma i rating recenti la mettono un gradino sopra le rivali se trova varchi.
+        3. <b>Extravaganzoo</b>: Outsider di lusso, da non sottovalutare se le favorite impostano un ritmo suicida.
+           
+        🏇 <b>Da Tenere d'Occhio:</b>
+        - <b>Rosallion</b>: Il tre anni di Hannon ha dimostrato di avere un motore fuori dal comune nelle St James's Palace Stakes. Il suo target principale resta il miglio autunnale; se mantiene questa condizione, sarà il cavallo da battere in Europa.
+        - <b>Romantic Warrior</b>: L'asso di Hong Kong continua a macinare lavori impressionanti in pista mattutina. Con un rating ormai consolidato a livello globale, il suo rientro sui 2000 metri a Sha Tin è atteso per confermare la sua supremazia.
+        - <b>Fierceness</b>: Dopo i recenti alti e bassi, il team americano sembra aver trovato la quadra. Ha bisogno di condurre la corsa senza troppa pressione per rendere al meglio; il prossimo impegno in un Grade 1 ci dirà se è tornato il vero dominatore.
+
+        [IL TUO TURNO]
+        Ora, scrivi il VERO briefing utilizzando SOLO i [DATI DI INPUT ODIERNI]. 
+        Usa ESATTAMENTE la stessa struttura. Nel punto della situazione, usa i DETTAGLI delle notizie per scrivere 3 righe corpose. In "Da Tenere d'Occhio", scegli SOLO 3 CAVALLI DA CORSA ATTIVI (ignora umani o puledri d'asta). Nessun tag <thought>.
         """
 
         risposta_groq = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            temperature=0.2,
+            model=MODELLO_IA,
+            temperature=0.3,
             messages=[
                 {"role": "system", "content": prompt_sistema},
                 {"role": "user", "content": prompt_utente}
             ]
         )
-        messaggio = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{risposta_groq.choices[0].message.content}"
-        manda_messaggio_telegram(messaggio)
+        testo_grezzo = risposta_groq.choices[0].message.content
+        messaggio_telegram = f"🏇 <b>IL TUO BRIEFING MATTUTINO</b> 🏇\n\n{pulisci_output_telegram(testo_grezzo)}"
+        manda_messaggio_telegram(messaggio_telegram)
         print("Briefing mattutino consegnato!")
 
     # ==========================================
     # 2. RADAR G1 A FINESTRA (SNAI STYLE) - GIRA SEMPRE
     # ==========================================
-    # Ora la finestra è impostata a 5.5 ore. Copre esattamente i buchi del cron (max 5 ore tra le 7 e le 12).
     print("Ricerca G1 in partenza nelle prossime 5.5 ore...")
     palinsesto_imminente = raccoglia_palinsesto_imminente(ore_finestra=5.5)
     
@@ -220,35 +289,35 @@ def main():
         print("Nessuna corsa rilevante nelle prossime ore.")
         return
 
-    prompt_radar_sistema = """Sei un automa per il tracciamento di pattern ippici e quotista esperto. 
-    Il tuo unico scopo è analizzare un palinsesto imminente ed estrarre SOLAMENTE corse di massima categoria (Group 1 / Grade 1 / G1). 
-    Sei programmato per eseguire istruzioni condizionali con assoluta precisione, senza aggiungere testo extra o conversazionale."""
+    prompt_radar_sistema = """You are a highly precise autonomous tracker for Group 1 horse racing patterns.
+    You analyze the schedule and extract ONLY top tier races (Group 1 / Grade 1 / G1).
+    You execute conditional logic perfectly. You MUST output the final alert in ITALIAN."""
     
     prompt_radar_utente = f"""
-    Analizza le seguenti corse in partenza nelle prossime 5.5 ore (inclusi i partenti confermati):
+    Analyze these upcoming races:
     
     {palinsesto_imminente}
     
-    ISTRUZIONE CONDIZIONALE RIGIDA:
-    - Se nella lista fornita NON E' PRESENTE esplicitamente una corsa classificabile come Gruppo 1 (G1, Grade 1), l'intero tuo output deve essere ESATTAMENTE e SOLO questa stringa: NESSUN_ALLARME
-    - Non aggiungere punti, spiegazioni o testo prima o dopo la stringa NESSUN_ALLARME.
+    STRICT LOGIC:
+    - If there is NO Group 1 (G1, Grade 1) race in the text, your ENTIRE output must be EXACTLY: NESSUN_ALLARME
+    - Do NOT add a single word or thought tag if the answer is NESSUN_ALLARME.
     
-    Se INVECE trovi una corsa di Gruppo 1, genera un'allerta tecnica formattata ESATTAMENTE così:
+    If you DO find a Group 1 race, think in English inside <thought> tags, then create an Italian technical alert:
     
     🚨 <b>ALLARME G1 IN PARTENZA</b> 🚨
-    📍 <b>Ippodromo:</b> [Nome Ippodromo]
-    ⏰ <b>Partenza:</b> Ore [Orario]
-    🏆 <b>Corsa:</b> [Nome Corsa]
+    📍 <b>Ippodromo:</b> [Racecourse Name]
+    ⏰ <b>Partenza:</b> Ore [Time]
+    🏆 <b>Corsa:</b> [Race Name]
     
-    📝 <b>Perizia Corsa:</b> [Commento da quotista SNAI: analisi dello schema, valutazione del terreno se noto, e contesto del Gruppo 1]
+    📝 <b>Perizia Corsa:</b> [4-5 lines of SNAI oddsmaker analysis of the race scheme and context]
     
     📊 <b>I Protagonisti Principali:</b>
-    [Seleziona solo i 3 cavalli più pericolosi dalla lista PARTENTI CONFERMATI]
-    - <b>[Nome Cavallo]:</b> [Valutazione tecnica sulle sue chance di vittoria, forma recente presunta e attitudine al rientro/distanza]
+    [Select the top 3 horses from the PARTENTI CONFERMATI list]
+    - <b>[Horse Name]:</b> [Technical assessment of chances, form, and distance aptitude]
     """
 
     risposta_groq = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model=MODELLO_IA,
         temperature=0.1, 
         messages=[
             {"role": "system", "content": prompt_radar_sistema},
@@ -256,7 +325,8 @@ def main():
         ]
     )
     
-    alert = risposta_groq.choices[0].message.content.strip()
+    alert_grezzo = risposta_groq.choices[0].message.content.strip()
+    alert = pulisci_output_telegram(alert_grezzo)
     
     if alert == "NESSUN_ALLARME" or "NESSUN_ALLARME" in alert:
         print("Nessun G1 nella finestra oraria attuale. Silenzio radio mantenuto.")
