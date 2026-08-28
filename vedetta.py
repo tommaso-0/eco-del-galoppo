@@ -209,7 +209,7 @@ def main():
     # 1. MODALITÀ MATTINO: BRIEFING (SNAI STYLE)
     # ==========================================
     # MODALITÀ DEBUG: Forza l'esecuzione ignorando l'orario
-    if DATA_OGGI.hour == 7:
+    if DATA_OGGI.hour in [5, 6]:
         print("È mattina (ore 7 UTC): Generazione Briefing in stile SNAI...")
         notizie = raccoglia_notizie_per_ia()
         palinsesto = raccoglia_palinsesto_completo()
