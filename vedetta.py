@@ -1,62 +1,160 @@
-"""
-VEDETTA.PY — SEZIONI OTTIMIZZATE (Briefing Mattutino + Radar G1) — v2
-======================================================================
-Sostituisce SOLO le parti relative a briefing/allarmi. Le funzioni di
-scraping non toccate (raccoglia_notizie_per_ia, raccoglia_palinsesto_completo,
-esplora_json, contiene_asiatico, classe OggettoNotizia) restano identiche:
-non copiarle da qui, lasciale dove sono nel file originale.
-
-COSA CAMBIA RISPETTO ALLA PRIMA VERSIONE
-------------------------------------------
-1. Niente Supabase: stato su file locale (vedetta_state.json), MA la
-   persistenza tra un'esecuzione e l'altra su GitHub Actions richiede un
-   commit di quel file a fine workflow — vedi lo snippet YAML che ti ho
-   dato in chat. Il codice qui presume solo che il file esista/sopravviva;
-   non sa nulla di git.
-
-2. Provider IA con fallback automatico: Gemini (Flash-Lite, quota gratuita
-   più alta) come primario, Groq come riserva se Gemini non è configurato,
-   fallisce o va in quota-exceeded (429). Serve un nuovo secret opzionale
-   GEMINI_API_KEY — se non lo imposti, si usa direttamente Groq come prima.
-
-3. Anti-allucinazione sugli allarmi G1: l'IA risponde in JSON e può citare
-   SOLO cavalli presenti nella lista reale dei partenti che le passiamo.
-   Il codice valida la risposta; se l'IA inventa un nome, quel nome viene
-   scartato, e se non resta nulla di valido si manda comunque l'allarme ma
-   coi soli dati certi (niente analisi IA), invece di rischiare di
-   pubblicare un'invenzione.
-
-4. Controllo "morbido" sul briefing mattutino: dato che qui i cavalli
-   vengono da testo libero (notizie), non c'è una lista chiusa da validare.
-   Lo script segnala nei log (senza bloccare l'invio) i nomi in grassetto
-   che non compaiono da nessuna parte nei dati di partenza, così te ne
-   accorgi quando l'IA sta divagando.
-"""
-
 import os
 import re
 import json
 import time
 import html as html_lib
+import requests
+import feedparser
 from pathlib import Path
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from groq import Groq
 
-# (import esistenti da mantenere: requests, feedparser, datetime, timedelta, Groq)
+# ==========================================
+# 1. SETUP (INVARIATO RISPETTO ALL'ORIGINALE)
+# ==========================================
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+client = Groq(api_key=GROQ_API_KEY)
+MODELLO_IA = "openai/gpt-oss-120b"
+
+DATA_OGGI = datetime.utcnow()
 
 FUSO_UK = ZoneInfo("Europe/London")
 STATO_FILE = Path("vedetta_state.json")
 LIMITE_TELEGRAM = 4096
-
 PATTERN_G1 = re.compile(r'\b(GROUP\s*1\b|GR\.?\s*1\b|GRADE\s*(1|I)\b|G1\b)', re.IGNORECASE)
 
 # Provider IA: Gemini (primario, se configurato) con fallback su Groq
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")  # nuovo secret opzionale su GitHub
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")  # secret opzionale su GitHub
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")  # alias sempre aggiornato
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 
+class OggettoNotizia:
+    def __init__(self, title, link, published_dt):
+        self.title = str(title)
+        self.link = str(link)
+        self.published = published_dt
+
+
+def esplora_json(dizionario, chiavi_target):
+    try:
+        for chiave, valore in dizionario.items():
+            if chiave.lower() in chiavi_target and isinstance(valore, str):
+                return valore
+        for chiave, valore in dizionario.items():
+            if isinstance(valore, dict):
+                risultato = esplora_json(valore, chiavi_target)
+                if risultato:
+                    return risultato
+    except Exception:
+        pass
+    return None
+
+
+def contiene_asiatico(testo):
+    try:
+        return bool(re.search(r'[\u4e00-\u9FFF\u3040-\u309F\u30A0-\u30FF]', str(testo)))
+    except Exception:
+        return False
+
+
 # ==========================================
-# STATO PERSISTENTE (dedup briefing + allarmi)
+# 2. RACCOLTA DATI (SCRAPING — INVARIATO)
+# ==========================================
+def raccoglia_notizie_per_ia():
+    fonti = [
+        {"nome": "ITALIAN POST RACING", "rss": "https://www.italianpostracing.it/feed/", "tipo": "diretto"},
+        {"nome": "EUROPEAN RACING (UK/FR)", "rss": "https://news.google.com/rss/search?q=horse+racing+uk+OR+france+when:24h&hl=en-GB&gl=GB&ceid=GB:en", "tipo": "google"},
+        {"nome": "ASIAN/AUS RACING", "rss": "https://news.google.com/rss/search?q=horse+racing+australia+OR+hong+kong+when:24h&hl=en-AU&gl=AU&ceid=AU:en", "tipo": "google"},
+        {"nome": "BLOODHORSE (USA)", "rss": "https://news.google.com/rss/search?q=site:bloodhorse.com+when:48h&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
+        {"nome": "PAULICK REPORT", "rss": "https://news.google.com/rss/search?q=site:paulickreport.com+when:48h&hl=en-US&gl=US&ceid=US:en", "tipo": "google"},
+    ]
+
+    testo_rss = ""
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    for f in fonti:
+        try:
+            res = requests.get(f['rss'], headers=headers, timeout=5)
+            feed = feedparser.parse(res.content)
+            valide = 0
+            for entry in feed.entries:
+                if valide >= 2:
+                    break
+                dt_pub = DATA_OGGI
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    dt_pub = datetime.fromtimestamp(time.mktime(entry.published_parsed))
+                if (DATA_OGGI - dt_pub).total_seconds() > (48 * 3600):
+                    continue
+
+                titolo = getattr(entry, 'title', '')
+                if f["tipo"] == "google" and " - " in titolo:
+                    titolo = titolo.rsplit(" - ", 1)[0]
+                if contiene_asiatico(titolo):
+                    continue
+
+                descrizione = getattr(entry, 'description', getattr(entry, 'summary', 'Nessun dettaglio.'))
+                descrizione = re.sub(r'<[^>]+>', '', descrizione).strip()[:250]
+                testo_rss += f"- [{f['nome']}] TITOLO: {titolo}\n DETTAGLI: {descrizione}...\n"
+                valide += 1
+        except Exception:
+            continue
+
+    return testo_rss
+
+
+def raccoglia_palinsesto_completo():
+    oggi_str = DATA_OGGI.strftime('%Y-%m-%d')
+    url = f"https://www.sportinglife.com/api/horse-racing/racing/racecards/{oggi_str}"
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    testo_palinsesto = ""
+
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        if res.status_code == 200:
+            meetings = res.json() if isinstance(res.json(), list) else res.json().get('meetings', [])
+            for m in meetings:
+                if not isinstance(m, dict):
+                    continue
+                races = m.get('races', [])
+                nome_ipp = esplora_json(m, ['name', 'course_name', 'meeting_name', 'venue']) or "IPPODROMO"
+                testo_palinsesto += f"\nIppodromo: {nome_ipp}\n"
+
+                for r in races:
+                    if not isinstance(r, dict):
+                        continue
+                    ora = r.get('time', 'N/D')
+                    titolo_c = r.get('race_name', r.get('name', 'Corsa'))
+
+                    partenti_str = ""
+                    if any(kw in titolo_c.upper() for kw in ["GROUP ", "GRADE ", "LISTED", "CLASS 1", "STAKES"]):
+                        ref = r.get('race_summary_reference')
+                        race_id = ref.get('id') if isinstance(ref, dict) else None
+                        if race_id:
+                            try:
+                                r_res = requests.get(f"https://www.sportinglife.com/api/horse-racing/race/{race_id}", headers=headers, timeout=5)
+                                if r_res.status_code == 200:
+                                    rides = r_res.json().get('rides', [])
+                                    cavalli = [p.get('horse', {}).get('name', '') for p in rides if isinstance(p, dict) and isinstance(p.get('horse'), dict)]
+                                    cavalli_validi = [c for c in cavalli if c][:12]
+                                    if cavalli_validi:
+                                        partenti_str = f" [PARTENTI CHIAVE: {', '.join(cavalli_validi)}]"
+                            except Exception:
+                                pass
+
+                    testo_palinsesto += f" - Ore {ora}: {titolo_c}{partenti_str}\n"
+    except Exception:
+        testo_palinsesto = "Palinsesto non disponibile."
+
+    return testo_palinsesto
+
+
+# ==========================================
+# 3. STATO PERSISTENTE (dedup briefing + allarmi)
 # ==========================================
 def carica_stato():
     oggi_str = DATA_OGGI.strftime("%Y-%m-%d")
@@ -84,7 +182,7 @@ def salva_stato(stato):
 
 
 # ==========================================
-# PROVIDER IA CON FALLBACK (Gemini → Groq)
+# 4. PROVIDER IA CON FALLBACK (Gemini → Groq)
 # ==========================================
 def _chiama_gemini(system, user, temperature):
     if not GEMINI_API_KEY:
@@ -132,7 +230,7 @@ def genera_testo_ia(system, user, temperature):
 
 
 # ==========================================
-# RICONOSCIMENTO G1 DETERMINISTICO
+# 5. RICONOSCIMENTO G1 DETERMINISTICO
 # ==========================================
 def e_gruppo_1(titolo_corsa):
     """Copre le diciture UK/IRE/FRA ('Group 1'), USA ('Grade 1'/'Grade I') e Asia/Oceania ('G1')."""
@@ -140,11 +238,11 @@ def e_gruppo_1(titolo_corsa):
 
 
 # ==========================================
-# SANITIZZAZIONE OUTPUT IA PER TELEGRAM
+# 6. SANITIZZAZIONE OUTPUT IA PER TELEGRAM
 # ==========================================
 def sanitizza_html_telegram(testo):
-    """Un `&` o `<` residuo non appartenente a un tag consentito manda in errore
-    l'intera richiesta a Telegram: il messaggio viene perso, non solo il carattere."""
+    """Sostituisce pulisci_output_telegram: un `&` o `<` residuo non appartenente a un
+    tag consentito manda in errore l'intera richiesta a Telegram (messaggio perso)."""
     if not testo:
         return ""
     testo = re.sub(r'<thought>.*?</thought>', '', testo, flags=re.DOTALL)
@@ -158,9 +256,7 @@ def sanitizza_html_telegram(testo):
 
 def verifica_grounding(testo_grezzo, fonte_dati):
     """Controllo 'morbido' anti-allucinazione per il briefing: segnala SOLO nei log
-    i nomi in grassetto che non compaiono nei dati di partenza. Non blocca l'invio
-    (troppe varianti di nome per farlo in automatico senza falsi positivi) — serve
-    a farti notare quando l'IA sta divagando."""
+    i nomi in grassetto che non compaiono nei dati di partenza. Non blocca l'invio."""
     nomi = re.findall(r'<b>(.*?)</b>', testo_grezzo)
     fonte_upper = fonte_dati.upper()
     sospetti = [n for n in nomi if len(n) > 3 and n.upper() not in fonte_upper]
@@ -184,7 +280,7 @@ def _spezza_messaggio(testo, limite=LIMITE_TELEGRAM):
 
 
 # ==========================================
-# INVIO TELEGRAM ROBUSTO (retry + fallback + split)
+# 7. INVIO TELEGRAM ROBUSTO (retry + fallback + split)
 # ==========================================
 def manda_messaggio_telegram(testo, tentativi=3):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -222,7 +318,7 @@ def manda_messaggio_telegram(testo, tentativi=3):
 
 
 # ==========================================
-# PALINSESTO IMMINENTE — STRUTTURATO
+# 8. PALINSESTO IMMINENTE — STRUTTURATO (per il radar G1)
 # ==========================================
 def raccoglia_palinsesto_imminente(ore_finestra=5.5):
     oggi_str = DATA_OGGI.strftime('%Y-%m-%d')
@@ -293,7 +389,7 @@ def raccoglia_palinsesto_imminente(ore_finestra=5.5):
 
 
 # ==========================================
-# GENERAZIONE ALLARME G1 CON VALIDAZIONE ANTI-ALLUCINAZIONE
+# 9. GENERAZIONE ALLARME G1 CON VALIDAZIONE ANTI-ALLUCINAZIONE
 # ==========================================
 def genera_alert_g1(corsa):
     intestazione = (
@@ -304,7 +400,6 @@ def genera_alert_g1(corsa):
     )
 
     if not corsa["partenti"]:
-        # Niente partenti confermati: niente nomi da inventare, solo i dati certi.
         return intestazione + "📝 Partenti non ancora confermati dai dati ufficiali: nessuna analisi automatica per evitare invenzioni."
 
     prompt_sistema = (
@@ -352,13 +447,13 @@ def genera_alert_g1(corsa):
 
 
 # ==========================================
-# MAIN
+# 10. MAIN
 # ==========================================
 def main():
     stato = carica_stato()
 
     # ------------------------------------------
-    # 1. BRIEFING MATTUTINO — finestra larga + idempotente
+    # BRIEFING MATTUTINO — finestra larga + idempotente
     # ------------------------------------------
     if 5 <= DATA_OGGI.hour <= 8 and not stato["briefing_inviato"]:
         print(f"Finestra briefing attiva (ore {DATA_OGGI.hour} UTC): generazione in corso...")
@@ -386,9 +481,35 @@ NOTIZIE:
 PALINSESTO:
 {palinsesto}
 
+[ESEMPIO DI OUTPUT PERFETTO CHE DEVI IMITARE]
+📰 <b>Il punto della situazione:</b>
+- Il galoppo europeo si infiamma con l'annuncio del rientro di City Of Troy a York; leggendo i dettagli, il team punta tutto sulle Juddmonte International su un terreno che si preannuncia compatto, ideale per le sue lunghe leve.
+- Sul fronte americano, l'asta in Texas ha visto cifre da capogiro per i figli di Gunite, confermando che il mercato d'oltreoceano cerca disperatamente precocità e stalloni affermati.
+- In Australia, il mercato dei fantini subisce uno scossone con la squalifica di J. McDonald. Le motivazioni fornite indicano un cambio di rotta severo da parte dei commissari, che rimescola le carte per le prossime corse a Randwick.
+
+🏆 <b>Le Corse Imperdibili:</b>
+<b>Ore 15:30</b> — <i>Prix Jacques Le Marois (Deauville)</i>
+<b>Analisi del tracciato:</b> Il miglio in pista dritta di Deauville è un test spietato per i polmoni. Il terreno pesante di oggi annullerà i velocisti puri, favorendo chi ha stamina da vendere negli ultimi 200 metri e sangue freddo.
+<b>I 3 Protagonisti:</b>
+1. <b>Inspiral</b>: La regina del miglio. Se trova il varco ai 400 finali, la sua progressione è letale.
+2. <b>Big Rock</b>: Un front-runner spietato. Proverà a stroncare tutti sul passo fin dall'apertura delle gabbie.
+3. <b>Charyn</b>: Regolarissimo quest'anno, ha la solidità perfetta per raccogliere i cocci se i primi due si scannano.
+
+<b>Ore 20:40</b> — <i>Bolton Landing Stakes (Saratoga)</i>
+<b>Analisi del tracciato:</b> Pista in erba americana, dove lo scatto dal gabbione è tutto. I front-runner puri rischiano di cuocersi, ma chi resta troppo indietro nel traffico non recupera. Serve posizione tattica e un cambio di marcia violento.
+<b>I 3 Protagonisti:</b>
+1. <b>More Champagne</b>: Sulla carta ha i parziali migliori, ma il numero di steccato potrebbe costringerla agli straordinari.
+2. <b>Side Quest</b>: Incognita legata al terreno, ma i rating recenti la mettono un gradino sopra le rivali se trova varchi.
+3. <b>Extravaganzoo</b>: Outsider di lusso, da non sottovalutare se le favorite impostano un ritmo suicida.
+
+🏇 <b>Da Tenere d'Occhio:</b>
+- <b>Rosallion</b>: Il tre anni di Hannon ha dimostrato di avere un motore fuori dal comune nelle St James's Palace Stakes. Il suo target principale resta il miglio autunnale; se mantiene questa condizione, sarà il cavallo da battere in Europa.
+- <b>Romantic Warrior</b>: L'asso di Hong Kong continua a macinare lavori impressionanti in pista mattutina. Con un rating ormai consolidato a livello globale, il suo rientro sui 2000 metri a Sha Tin è atteso per confermare la sua supremazia.
+- <b>Fierceness</b>: Dopo i recenti alti e bassi, il team americano sembra aver trovato la quadra. Ha bisogno di condurre la corsa senza troppa pressione per rendere al meglio; il prossimo impegno in un Grade 1 ci dirà se è tornato il vero dominatore.
+
 [IL TUO TURNO]
-Scrivi il VERO briefing usando SOLO i [DATI DI INPUT ODIERNI], stessa struttura dell'esempio originale.
-Nessun tag <thought>.
+Ora, scrivi il VERO briefing utilizzando SOLO i [DATI DI INPUT ODIERNI].
+Usa ESATTAMENTE la stessa struttura. Nel punto della situazione, usa i DETTAGLI delle notizie per scrivere 3 righe corpose. In "Da Tenere d'Occhio", scegli SOLO 3 CAVALLI DA CORSA ATTIVI (ignora umani o puledri d'asta). Nessun tag <thought>.
 """
         testo_grezzo = genera_testo_ia(prompt_sistema, prompt_utente, 0.3)
         if testo_grezzo:
@@ -405,7 +526,7 @@ Nessun tag <thought>.
             print("Nessun provider IA disponibile per il briefing; si ritenta al prossimo run in finestra.")
 
     # ------------------------------------------
-    # 2. RADAR G1 — filtro deterministico + dedup, gira sempre
+    # RADAR G1 — filtro deterministico + dedup, gira sempre
     # ------------------------------------------
     print("Ricerca G1 in partenza nelle prossime 5.5 ore...")
     corse_imminenti = raccoglia_palinsesto_imminente(ore_finestra=5.5)
